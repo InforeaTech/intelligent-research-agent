@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Research Agent</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="background-gradient"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-robot"></i>
+                <h1>Research<span>Agent</span></h1>
+            </div>
+            <div class="api-key-container">
+                <div class="settings-row">
+                    <select id="modelProvider">
+                        <option value="openai">OpenAI (GPT-4o)</option>
+                        <option value="gemini">Google Gemini</option>
+                    </select>
+                    <input type="password" id="apiKey" placeholder="Model API Key (leave empty if stored)">
+                </div>
+                <div class="settings-row">
+                    <select id="searchProvider">
+                        <option value="ddg">DuckDuckGo (Free)</option>
+                        <option value="serper">Serper.dev (Google)</option>
+                    </select>
+                    <input type="password" id="serperKey" placeholder="Serper Key (if needed)" class="hidden">
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Input Section -->
+            <section class="card input-section">
+                <h2><i class="fa-solid fa-magnifying-glass"></i> Start Research</h2>
+                <div class="form-group">
+                    <label for="personName">Full Name</label>
+                    <input type="text" id="personName" placeholder="e.g. Satya Nadella" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="companyName">Company (Optional)</label>
+                        <input type="text" id="companyName" placeholder="e.g. Microsoft">
+                    </div>
+                    <div class="form-group">
+                        <label for="additionalInfo">Additional Info (Optional)</label>
+                        <input type="text" id="additionalInfo" placeholder="e.g. CEO, Seattle">
+                    </div>
+                </div>
+                <button id="researchBtn" class="btn-primary">
+                    <span class="btn-text">Generate Profile</span>
+                    <span class="loader hidden"></span>
+                </button>
+            </section>
+
+            <!-- Results Section -->
+            <div id="resultsArea" class="hidden">
+                <div class="split-view">
+                    <!-- Profile View -->
+                    <section class="card profile-section">
+                        <div class="card-header">
+                            <h2><i class="fa-solid fa-user-tie"></i> Professional Profile</h2>
+                            <div class="actions">
+                                <button class="btn-icon" id="copyProfileBtn" title="Copy Profile"><i
+                                        class="fa-regular fa-copy"></i></button>
+                            </div>
+                        </div>
+                        <div id="profileContent" class="markdown-content">
+                            <!-- Profile content will be injected here -->
+                        </div>
+                    </section>
+
+                    <!-- Note Generation View -->
+                    <section class="card note-section">
+                        <div class="card-header">
+                            <h2><i class="fa-brands fa-linkedin"></i> Connection Note</h2>
+                        </div>
+
+                        <div class="controls">
+                            <div class="control-group">
+                                <label>Length</label>
+                                <select id="noteLength">
+                                    <option value="100">100 chars (Concise)</option>
+                                    <option value="150">150 chars (Brief)</option>
+                                    <option value="300" selected>300 chars (Standard)</option>
+                                    <option value="500">500+ chars (Detailed)</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>Tone</label>
+                                <select id="noteTone">
+                                    <option value="professional" selected>Professional</option>
+                                    <option value="casual">Casual</option>
+                                    <option value="enthusiastic">Enthusiastic</option>
+                                    <option value="formal">Formal</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="control-group full-width">
+                            <label>Context / Reason</label>
+                            <input type="text" id="noteContext" placeholder="e.g. Discussing AI partnership...">
+                        </div>
+
+                        <button id="generateNoteBtn" class="btn-secondary">Generate Note</button>
+
+                        <div class="note-output">
+                            <textarea id="noteResult" readonly
+                                placeholder="Generated note will appear here..."></textarea>
+                            <div class="note-actions">
+                                <span id="charCount">0 chars</span>
+                                <button class="btn-icon" id="copyNoteBtn" title="Copy Note"><i
+                                        class="fa-regular fa-copy"></i></button>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
