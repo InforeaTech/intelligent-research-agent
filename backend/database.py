@@ -110,9 +110,15 @@ class DatabaseManager:
             cursor.execute(query, (action_type, search_data_json))
             row = cursor.fetchone()
             if row:
+                # Check if cached result is an error message
+                cached_output = row['final_output']
+                if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
+                    print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
+                    conn.close()
+                    return None
                 print(f"Cache hit (Exact) for {action_type}")
                 conn.close()
-                return row['final_output']
+                return cached_output
         
         # For fuzzy match, we fetch recent logs and compare in Python
         # We limit to 20 recent logs to avoid performance issues
@@ -153,10 +159,55 @@ class DatabaseManager:
                 if action_type == "generate_note":
                     if (row_input.get("tone") == user_input.get("tone") and 
                         row_input.get("length") == user_input.get("length")):
+                        # Check if cached result is an error message
+                        cached_output = row['final_output']
+                        if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
+                            print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
+                            continue
                         print(f"Cache hit (Fuzzy {similarity:.2f}) for {action_type} with matching tone/length")
-                        return row['final_output']
+                        return cached_output
                 else:
+                    # Check if cached result is an error message
+                    cached_output = row['final_output']
+                    if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
+                        print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
+                        continue
                     print(f"Cache hit (Fuzzy {similarity:.2f}) for {action_type}")
-                    return row['final_output']
+                    return cached_output
 
         return None
+
+    def get_recent_note_for_profile(self, profile_text: str, similarity_threshold: float = 0.8) -> Optional[Dict[str, str]]:
+        """Retrieves the most recent note generated for a similar profile."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Fetch recent note generation logs
+        cursor.execute('SELECT user_input, final_output FROM logs WHERE action_type = ? ORDER BY timestamp DESC LIMIT 20', ('generate_note',))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not profile_text:
+            return None
+        
+        for row in rows:
+            row_input = json.loads(row['user_input']) if row['user_input'] else {}
+            row_profile = row_input.get('profile_text', '')
+            
+            if not row_profile:
+                continue
+            
+            # Calculate similarity
+            similarity = difflib.SequenceMatcher(None, profile_text, row_profile).ratio()
+            if similarity >= similarity_threshold:
+                print(f"Found cached note (similarity {similarity:.2f}) for profile")
+                return {
+                    'note': row['final_output'],
+                    'tone': row_input.get('tone', 'professional'),
+                    'length': row_input.get('length', 300),
+                    'context': row_input.get('context', '')
+                }
+        
+        return None
+

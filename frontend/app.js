@@ -53,7 +53,8 @@ async function handleResearch() {
             company,
             additional_info: additionalInfo,
             api_key: apiKey,
-            model_provider: modelProvider
+            model_provider: modelProvider,
+            search_provider: searchProviderSelect.value
         };
 
         if (searchProviderSelect.value === 'serper') {
@@ -68,21 +69,97 @@ async function handleResearch() {
 
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.detail || 'Research failed');
+            // Handle both string and object error details
+            let errorMessage = 'Research failed';
+            if (err.detail) {
+                if (typeof err.detail === 'string') {
+                    errorMessage = err.detail;
+                } else if (Array.isArray(err.detail)) {
+                    // Pydantic validation errors come as an array
+                    errorMessage = err.detail.map(e => e.msg || JSON.stringify(e)).join(', ');
+                } else if (typeof err.detail === 'object') {
+                    errorMessage = err.detail.msg || JSON.stringify(err.detail);
+                }
+            }
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
         currentProfileText = data.profile;
 
+        // Display cache indicator for profile
+        const profileHeader = document.querySelector('.profile-section .card-header h2');
+        if (data.from_cache) {
+            if (!document.getElementById('profileCacheBadge')) {
+                const badge = document.createElement('span');
+                badge.id = 'profileCacheBadge';
+                badge.className = 'cache-badge';
+                badge.textContent = '⚡ From Cache';
+                profileHeader.appendChild(badge);
+            }
+        } else {
+            const existingBadge = document.getElementById('profileCacheBadge');
+            if (existingBadge) existingBadge.remove();
+        }
+
         // Render Markdown
         profileContent.innerHTML = marked.parse(data.profile);
         resultsArea.classList.remove('hidden');
 
-        // Auto-generate a default note
-        handleGenerateNote();
+        // Auto-populate cached note if available
+        if (data.cached_note) {
+            noteResult.value = data.cached_note;
+            updateCharCount();
+
+            // Show cache badge for note
+            const noteHeader = document.querySelector('.note-section .card-header h2');
+            if (data.cached_note_from_cache) {
+                if (!document.getElementById('noteCacheBadge')) {
+                    const badge = document.createElement('span');
+                    badge.id = 'noteCacheBadge';
+                    badge.className = 'cache-badge';
+                    badge.textContent = '⚡ From Cache';
+                    noteHeader.appendChild(badge);
+                }
+            }
+        } else {
+            // Generate a new note if no cached note available
+            handleGenerateNote();
+        }
 
     } catch (error) {
-        alert(`Error: ${error.message}`);
+        // Check if it's a validation error about the name
+        if (error.message.includes('Full name must include') ||
+            error.message.includes('Name must contain') ||
+            error.message.includes('Name cannot be empty') ||
+            error.message.includes('Invalid input')) {
+
+            // Extract the actual error message
+            let errorText = error.message;
+            // Remove "Invalid input: " prefix if present
+            errorText = errorText.replace(/Invalid input:\s*/i, '');
+            // Remove "Value error, " prefix from Pydantic
+            errorText = errorText.replace(/Value error,\s*/i, '');
+
+            // Display inline error message
+            const existingAlert = document.querySelector('.validation-alert');
+            if (existingAlert) existingAlert.remove();
+
+            const alertContainer = document.createElement('div');
+            alertContainer.className = 'validation-alert';
+            alertContainer.style.cssText = 'background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 12px; border-radius: 8px; margin-top: 8px; font-size: 14px;';
+            alertContainer.innerHTML = `<strong>⚠️ Invalid Name!</strong><br>${errorText}<br><em style="font-size: 12px; color: #7f1d1d;">Example: "John Doe"</em>`;
+            document.getElementById('personName').parentElement.appendChild(alertContainer);
+            setTimeout(() => {
+                alertContainer.remove();
+            }, 7000);
+
+            // Refocus on the name input field
+            document.getElementById('personName').focus();
+            document.getElementById('personName').select();
+        } else {
+            alert(`Error: ${error.message}`);
+        }
     } finally {
         setLoading(false);
     }
@@ -122,6 +199,21 @@ async function handleGenerateNote() {
         const data = await response.json();
         noteResult.value = data.note;
         updateCharCount();
+
+        // Display cache indicator for note
+        const noteHeader = document.querySelector('.note-section .card-header h2');
+        if (data.from_cache) {
+            if (!document.getElementById('noteCacheBadge')) {
+                const badge = document.createElement('span');
+                badge.id = 'noteCacheBadge';
+                badge.className = 'cache-badge';
+                badge.textContent = '⚡ From Cache';
+                noteHeader.appendChild(badge);
+            }
+        } else {
+            const existingBadge = document.getElementById('noteCacheBadge');
+            if (existingBadge) existingBadge.remove();
+        }
 
     } catch (error) {
         alert(`Error: ${error.message}`);

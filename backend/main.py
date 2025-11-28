@@ -2,6 +2,7 @@ import os
 import fastapi
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 from dotenv import load_dotenv
 from agent import ResearchAgent
 from schemas import (
@@ -61,29 +62,47 @@ def research_profile(request: ProfileRequest):
     1. Search web for info.
     2. Generate profile using LLM.
     """
-    # Determine API Key based on provider
-    if request.model_provider == "gemini":
-        api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
-    else:
-        api_key = request.api_key or secret_manager.get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
-    
-    serper_key = request.serper_api_key or secret_manager.get_secret("SERPER_API_KEY") or os.getenv("SERPER_API_KEY")
+    try:
+        # Determine API Key based on provider
+        if request.model_provider == "gemini":
+            api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+        else:
+            api_key = request.api_key or secret_manager.get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        
+        # Only use Serper if explicitly requested by search_provider
+        serper_key = None
+        if request.search_provider == "serper":
+            serper_key = request.serper_api_key or secret_manager.get_secret("SERPER_API_KEY") or os.getenv("SERPER_API_KEY")
 
-    if not api_key:
-        raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
+        if not api_key:
+            raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
 
-    # 1. Gather Info
-    print(f"Gathering info for {request.name}...")
-    research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key)
+        # 1. Gather Info
+        print(f"Gathering info for {request.name} using {request.search_provider.upper()}...")
+        research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key)
+        
+        # 2. Generate Profile
+        print(f"Generating profile using {request.model_provider}...")
+        profile_text, from_cache, cached_note = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache)
+        
+        # Prepare response
+        response = {
+            "research_data": research_data,
+            "profile": profile_text,
+            "from_cache": from_cache
+        }
+        
+        # Include cached note if available
+        if cached_note:
+            response["cached_note"] = cached_note.get('note')
+            response["cached_note_from_cache"] = True
+        
+        return response
     
-    # 2. Generate Profile
-    print(f"Generating profile using {request.model_provider}...")
-    profile_text = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache)
-    
-    return {
-        "research_data": research_data,
-        "profile": profile_text
-    }
+    except ValidationError as e:
+        # Extract the first validation error message
+        error_msg = e.errors()[0]['msg'] if e.errors() else "Validation error"
+        raise HTTPException(status_code=422, detail=f"Invalid input: {error_msg}")
 
 @app.post("/api/generate-note", response_model=NoteResponse)
 def generate_note(request: NoteRequest):
@@ -95,7 +114,7 @@ def generate_note(request: NoteRequest):
     if not api_key:
         raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
 
-    note = agent.generate_note(
+    note, from_cache = agent.generate_note(
         request.profile_text, 
         request.length, 
         request.tone, 
@@ -105,7 +124,10 @@ def generate_note(request: NoteRequest):
         bypass_cache=request.bypass_cache
     )
     
-    return {"note": note}
+    return {
+        "note": note,
+        "from_cache": from_cache
+    }
 
 @app.post("/api/deep-research", response_model=DeepResearchResponse)
 def deep_research(request: DeepResearchRequest):
@@ -113,12 +135,17 @@ def deep_research(request: DeepResearchRequest):
     Performs deep research on a topic using Gemini 1.5 Pro.
     """
     api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
-    serper_key = request.serper_api_key or secret_manager.get_secret("SERPER_API_KEY") or os.getenv("SERPER_API_KEY")
+    
+    # Only use Serper if explicitly requested by search_provider
+    serper_key = None
+    if request.search_provider == "serper":
+        serper_key = request.serper_api_key or secret_manager.get_secret("SERPER_API_KEY") or os.getenv("SERPER_API_KEY")
 
     if not api_key:
         raise HTTPException(status_code=400, detail="Gemini API Key is required for deep research.")
 
     try:
+        print(f"Deep research using {request.search_provider.upper()}...")
         report = agent.perform_deep_research(request.topic, api_key, serper_key, bypass_cache=request.bypass_cache)
         return {"report": report}
     except Exception as e:

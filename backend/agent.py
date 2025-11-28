@@ -40,33 +40,41 @@ class ResearchAgent:
             "source": "Serper" if serper_api_key else "DuckDuckGo"
         }
 
-    def generate_profile(self, research_data: Dict, api_key: str, provider: str = "openai", bypass_cache: bool = False) -> str:
-        """Uses LLM to compile a profile from research data."""
+    def generate_profile(self, research_data: Dict, api_key: str, provider: str = "openai", bypass_cache: bool = False) -> tuple:
+        """Uses LLM to compile a profile from research data. Returns (profile_text, from_cache, cached_note_dict)"""
         # Check cache
         cached_result = self.db.check_existing_log(
             action_type="generate_profile",
             search_data=research_data,
             bypass_cache=bypass_cache
         )
-        if cached_result:
-            return cached_result
-
-        response_text = self.content_service.generate_profile(research_data, api_key, provider)
         
-        # Log interaction
-        # Note: We reconstruct the prompt here for logging purposes, or we could update the service to return it.
-        # For simplicity in this refactor, we'll log the inputs we have.
-        self.db.log_interaction(
-            action_type="generate_profile",
-            search_data=research_data,
-            model_input="Delegated to ContentService", 
-            model_output=response_text,
-            final_output=response_text
-        )
-        return response_text
+        from_cache = False
+        cached_note = None
+        
+        if cached_result:
+            from_cache = True
+            response_text = cached_result
+            # Try to find a cached note for this profile
+            cached_note = self.db.get_recent_note_for_profile(cached_result)
+        else:
+            response_text = self.content_service.generate_profile(research_data, api_key, provider)
+            
+            # Log interaction
+            # Note: We reconstruct the prompt here for logging purposes, or we could update the service to return it.
+            # For simplicity in this refactor, we'll log the inputs we have.
+            self.db.log_interaction(
+                action_type="generate_profile",
+                search_data=research_data,
+                model_input="Delegated to ContentService", 
+                model_output=response_text,
+                final_output=response_text
+            )
+        
+        return (response_text, from_cache, cached_note)
 
-    def generate_note(self, profile_text: str, length: int, tone: str, context: str, api_key: str, provider: str = "openai", bypass_cache: bool = False) -> str:
-        """Generates a LinkedIn connection note."""
+    def generate_note(self, profile_text: str, length: int, tone: str, context: str, api_key: str, provider: str = "openai", bypass_cache: bool = False) -> tuple:
+        """Generates a LinkedIn connection note. Returns (note_text, from_cache)"""
         # Check cache
         user_input = {"profile_text": profile_text, "length": length, "tone": tone, "context": context}
         cached_result = self.db.check_existing_log(
@@ -74,19 +82,24 @@ class ResearchAgent:
             user_input=user_input,
             bypass_cache=bypass_cache
         )
-        if cached_result:
-            return cached_result
-
-        response_text = self.content_service.generate_note(profile_text, length, tone, context, api_key, provider)
         
-        self.db.log_interaction(
-            action_type="generate_note",
-            user_input={"profile_text": profile_text, "length": length, "tone": tone, "context": context},
-            model_input="Delegated to ContentService",
-            model_output=response_text,
-            final_output=response_text
-        )
-        return response_text
+        from_cache = False
+        
+        if cached_result:
+            from_cache = True
+            response_text = cached_result
+        else:
+            response_text = self.content_service.generate_note(profile_text, length, tone, context, api_key, provider)
+            
+            self.db.log_interaction(
+                action_type="generate_note",
+                user_input={"profile_text": profile_text, "length": length, "tone": tone, "context": context},
+                model_input="Delegated to ContentService",
+                model_output=response_text,
+                final_output=response_text
+            )
+        
+        return (response_text, from_cache)
 
     def perform_deep_research(self, topic: str, api_key: str, serper_api_key: str = None, bypass_cache: bool = False) -> str:
         """Performs deep research using Gemini 3 Pro and multiple search iterations."""

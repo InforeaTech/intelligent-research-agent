@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, ValidationError
 
 # --- Request Models ---
 
@@ -9,12 +9,37 @@ class ProfileRequest(BaseModel):
     additional_info: str = ""
     api_key: str
     model_provider: str = "gemini"  # gemini or openai
+    search_provider: str = "ddg"  # ddg or serper
     serper_api_key: Optional[str] = None
     bypass_cache: bool = False
+    
+    @field_validator('name')
+    @classmethod
+    def validate_person_name(cls, v: str) -> str:
+        """Validate that the name is a person's full name."""
+        if not v or not v.strip():
+            raise ValueError("Name cannot be empty")
+        
+        # Remove extra whitespace
+        v = v.strip()
+        
+        # Check if name has at least two parts (first name and last name)
+        name_parts = v.split()
+        if len(name_parts) < 2:
+            raise ValueError("Full name must include at least first and last name (e.g., 'John Doe')")
+        
+        # Validate that name contains only valid characters for person names
+        # Allow letters, spaces, hyphens, apostrophes (for names like O'Brien, Mary-Jane)
+        import re
+        if not re.match(r"^[a-zA-Z\s\-'\.]+$", v):
+            raise ValueError("Name must contain only alphabetic characters, spaces, hyphens, apostrophes, or periods")
+        
+        return v
 
 class DeepResearchRequest(BaseModel):
     topic: str
     api_key: str
+    search_provider: str = "ddg"  # ddg or serper
     serper_api_key: Optional[str] = None
     bypass_cache: bool = False
 
@@ -36,9 +61,13 @@ class SecretRequest(BaseModel):
 class ProfileResponse(BaseModel):
     research_data: Dict[str, Any]
     profile: str
+    from_cache: bool = False
+    cached_note: Optional[str] = None
+    cached_note_from_cache: bool = False
 
 class NoteResponse(BaseModel):
     note: str
+    from_cache: bool = False
 
 class DeepResearchResponse(BaseModel):
     report: str
