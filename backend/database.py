@@ -155,16 +155,17 @@ class DatabaseManager:
             # Calculate similarity
             similarity = difflib.SequenceMatcher(None, target_text, row_text).ratio()
             if similarity >= similarity_threshold:
-                # For notes, also check if tone and length match
+                # For notes, also check if tone, length, and context match
                 if action_type == "generate_note":
                     if (row_input.get("tone") == user_input.get("tone") and 
-                        row_input.get("length") == user_input.get("length")):
+                        row_input.get("length") == user_input.get("length") and
+                        row_input.get("context") == user_input.get("context")):
                         # Check if cached result is an error message
                         cached_output = row['final_output']
                         if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
                             print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
                             continue
-                        print(f"Cache hit (Fuzzy {similarity:.2f}) for {action_type} with matching tone/length")
+                        print(f"Cache hit (Fuzzy {similarity:.2f}) for {action_type} with matching tone/length/context")
                         return cached_output
                 else:
                     # Check if cached result is an error message

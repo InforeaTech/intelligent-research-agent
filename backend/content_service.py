@@ -74,7 +74,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                         {"role": "system", "content": "You are a helpful professional research assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.3
+                    temperature=0.8
                 )
                 return response.choices[0].message.content
         except Exception as e:
@@ -115,7 +115,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                         {"role": "system", "content": "You are an expert networking assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.7
+                    temperature=0.8
                 )
                 return response.choices[0].message.content
         except Exception as e:
@@ -130,6 +130,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         You are a senior research analyst. I need to research the following topic deeply:
         "{topic}"
         
+        check if the person is a director in a company or not.
         Generate 4 specific search queries that will help gather comprehensive information on this topic.
         Return ONLY the queries as a JSON list of strings.
         Example: ["query 1", "query 2", ...]
