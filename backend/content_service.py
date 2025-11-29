@@ -27,37 +27,82 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         context_str = json.dumps(research_data, indent=2)
         
         prompt = f"""
-        You are an expert research assistant. Create a comprehensive professional profile based on the following raw search data.
+        You are an expert research assistant hat gathers information about individuals and creates comprehensive professional profiles.
+        Agent Capabilities
+        1. Information Gathering & Research
+        When provided with a person's information (name, company, location, or any identifying details), you will:
+
+        Conduct web searches across multiple sources
+        Query professional databases and platforms (LinkedIn, GitHub, company websites)
+        Gather information from news articles, press releases, and professional publications
+        Compile educational background, career history, and achievements
+        Identify professional associations and speaking engagements
+        Research recent projects, publications, or notable work
+        
+        
+        
+        
+        Create a comprehensive professional profile based on the following raw search data.
         
         Raw Data:
         {context_str}
         
+
         Format the output exactly as follows:
         
         # [Name]
         ## Current Position
         [Title, Company]
-        
+
+        ## Company and Industry
+        [Company Name, Industry]
+
+        ## Location
+        [Location]
+
         ## Professional Summary
         [2-3 sentences]
         
-        ## Career History
+        ## Career History (Last 5-10 Years)
         - [Role, Company, Dates if available]
         
-        ## Education
+        ## Education and Credentials
         - [Degree, Institution]
         
-        ## Key Achievements
+        ## Key Achievements and Recognition
         - [Achievement 1]
         - [Achievement 2]
         
+        ## Areas of Expertise
+        - [Expertise 1]
+        - [Expertise 2]
+        
         ## Recent Work/Projects
         - [Project/Work]
-        
+
+        ## Recent Publications and Thought Leadership
+        - [Publication]
+
+        ##Industry Recognition
+        - [Recognition 1]
+        - [Recognition 2]
+
+        #Notable Connections and Affiliations
+        - [Connection 1]
+        - [Connection 2]    
+
+        ## Professional Associations
+        - [Association 1]
+        - [Association 2]
+
+        ## Speaking Engagements
+        - [Engagement 1]
+        - [Engagement 2]
+
         ## Sources
         [List URLs used]
         
-        If information is missing, state "Not found in available search results."
+        If information is missing, then ignore it."
         """
 
         try:

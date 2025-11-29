@@ -318,6 +318,11 @@ textarea:focus {
     animation: rotation 1s linear infinite;
 }
 
+.loader.hidden {
+    display: none !important;
+}
+
+/* Loader Animation */
 @keyframes rotation {
     0% {
         transform: rotate(0deg);
