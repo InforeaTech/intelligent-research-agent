@@ -13,10 +13,27 @@ from schemas import (
     StatusResponse
 )
 from secrets_manager import SecretManager
+from logger_config import get_logger, set_request_id, log_performance
+import uuid
 
 load_dotenv()
 
+logger = get_logger(__name__)
+
 app = FastAPI(title="Intelligent Research Agent")
+
+# Request correlation middleware
+@app.middleware("http")
+async def add_request_id(request, call_next):
+    """Add request ID to each request for correlation."""
+    request_id = str(uuid.uuid4())
+    set_request_id(request_id)
+    logger.info("Request started", extra={'extra_data': {'method': request.method, 'path': request.url.path}})
+    
+    response = await call_next(request)
+    
+    logger.info("Request completed", extra={'extra_data': {'status_code': response.status_code}})
+    return response
 
 # CORS Setup
 app.add_middleware(
@@ -78,11 +95,11 @@ def research_profile(request: ProfileRequest):
             raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
 
         # 1. Gather Info
-        print(f"Gathering info for {request.name} using {request.search_provider.upper()}...")
+        logger.info("Gathering info", extra={'extra_data': {'name': request.name, 'search_provider': request.search_provider.upper()}})
         research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key)
         
         # 2. Generate Profile
-        print(f"Generating profile using {request.model_provider}...")
+        logger.info("Generating profile", extra={'extra_data': {'model_provider': request.model_provider}})
         profile_text, from_cache, cached_note = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache)
         
         # Prepare response
@@ -145,7 +162,7 @@ def deep_research(request: DeepResearchRequest):
         raise HTTPException(status_code=400, detail="Gemini API Key is required for deep research.")
 
     try:
-        print(f"Deep research using {request.search_provider.upper()}...")
+        logger.info("Deep research", extra={'extra_data': {'topic': request.topic, 'search_provider': request.search_provider.upper()}})
         report = agent.perform_deep_research(request.topic, api_key, serper_key, bypass_cache=request.bypass_cache)
         return {"report": report}
     except Exception as e:

@@ -5,6 +5,9 @@ from typing import List, Dict, Optional
 from search_service import SearchService
 from content_service import ContentService
 from database import DatabaseManager
+from logger_config import get_logger, log_performance
+
+logger = get_logger(__name__)
 
 
 class ResearchAgent:
@@ -101,12 +104,13 @@ class ResearchAgent:
         
         return (response_text, from_cache)
 
+    @log_performance()
     def perform_deep_research(self, topic: str, api_key: str, serper_api_key: str = None, bypass_cache: bool = False) -> str:
         """Performs deep research using Gemini 3 Pro and multiple search iterations."""
         if not api_key:
             return "Error: API Key is required for deep research."
 
-        print(f"Starting deep research on: {topic}")
+        logger.info("Starting deep research", extra={'extra_data': {'topic': topic}})
         
         # Check cache (Topic level)
         cached_result = self.db.check_existing_log(
@@ -115,12 +119,12 @@ class ResearchAgent:
             bypass_cache=bypass_cache
         )
         if cached_result:
-            print(f"Cache hit for deep_research: {topic}")
+            logger.info("Cache hit for deep research", extra={'extra_data': {'topic': topic}})
             return cached_result
         
         # Step 1: Plan Research
         queries, planning_prompt, planning_text = self.content_service.plan_research(topic, api_key)
-        print(f"Generated queries: {queries}")
+        logger.info("Generated queries", extra={'extra_data': {'query_count': len(queries), 'queries': queries}})
         
         # Log planning interaction
         self.db.log_interaction(
@@ -145,7 +149,7 @@ class ResearchAgent:
         unique_results = list(unique_results)
         
         # Step 3: Scrape Webpage Content
-        print(f"Scraping {len(unique_results)} webpages...")
+        logger.info("Scraping webpages", extra={'extra_data': {'count': len(unique_results)}})
         scraped_data = []
         for result in unique_results:
             scraped = self.search_service.scrape_webpage(result['href'])

@@ -4,6 +4,9 @@ import os
 from datetime import datetime
 from typing import Dict, Any, Optional
 import difflib
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 class DatabaseManager:
     def __init__(self, db_path: str = "agent_logs.db"):
@@ -75,7 +78,7 @@ class DatabaseManager:
         
         conn.commit()
         conn.close()
-        print(f"Logged interaction: {action_type}")
+        logger.info("Logged interaction", extra={'extra_data': {'action_type': action_type}})
 
     def get_logs(self, limit: int = 10):
         """Retrieve recent logs."""
@@ -96,7 +99,7 @@ class DatabaseManager:
     def check_existing_log(self, action_type: str, user_input: Optional[Dict[str, Any]] = None, search_data: Optional[Any] = None, bypass_cache: bool = False, similarity_threshold: float = 0.8) -> Optional[str]:
         """Checks if a log entry exists with the same inputs (fuzzy match) and returns the final output."""
         if bypass_cache:
-            print(f"Cache bypass for {action_type}")
+            logger.debug("Cache bypass", extra={'extra_data': {'action_type': action_type}})
             return None
 
         conn = sqlite3.connect(self.db_path)
@@ -113,10 +116,10 @@ class DatabaseManager:
                 # Check if cached result is an error message
                 cached_output = row['final_output']
                 if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
-                    print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
+                    logger.info("Skipping cached error", extra={'extra_data': {'action_type': action_type, 'error_preview': cached_output[:50]}})
                     conn.close()
                     return None
-                print(f"Cache hit (Exact) for {action_type}")
+                logger.info("Cache hit (Exact)", extra={'extra_data': {'action_type': action_type}})
                 conn.close()
                 return cached_output
         
@@ -163,17 +166,17 @@ class DatabaseManager:
                         # Check if cached result is an error message
                         cached_output = row['final_output']
                         if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
-                            print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
+                            logger.info("Skipping cached error", extra={'extra_data': {'action_type': action_type, 'error_preview': cached_output[:50]}})
                             continue
-                        print(f"Cache hit (Fuzzy {similarity:.2f}) for {action_type} with matching tone/length/context")
+                        logger.info("Cache hit (Fuzzy) with matching context", extra={'extra_data': {'action_type': action_type, 'similarity': round(similarity, 2)}})
                         return cached_output
                 else:
                     # Check if cached result is an error message
                     cached_output = row['final_output']
                     if cached_output and (cached_output.startswith("Error:") or cached_output.startswith("Error ")):
-                        print(f"Skipping cached error result for {action_type}: {cached_output[:50]}...")
+                        logger.info("Skipping cached error", extra={'extra_data': {'action_type': action_type, 'error_preview': cached_output[:50]}})
                         continue
-                    print(f"Cache hit (Fuzzy {similarity:.2f}) for {action_type}")
+                    logger.info("Cache hit (Fuzzy)", extra={'extra_data': {'action_type': action_type, 'similarity': round(similarity, 2)}})
                     return cached_output
 
         return None
@@ -202,7 +205,7 @@ class DatabaseManager:
             # Calculate similarity
             similarity = difflib.SequenceMatcher(None, profile_text, row_profile).ratio()
             if similarity >= similarity_threshold:
-                print(f"Found cached note (similarity {similarity:.2f}) for profile")
+                logger.info("Found cached note", extra={'extra_data': {'similarity': round(similarity, 2)}})
                 return {
                     'note': row['final_output'],
                     'tone': row_input.get('tone', 'professional'),

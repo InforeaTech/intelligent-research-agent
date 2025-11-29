@@ -1,4 +1,7 @@
 import os
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 import json
 from cryptography.fernet import Fernet
 
@@ -39,7 +42,7 @@ class SecretManager:
             decrypted = f.decrypt(encrypted)
             return json.loads(decrypted.decode())
         except Exception as e:
-            print(f"Error loading secrets: {e}")
+            logger.error("Error loading secrets", extra={'extra_data': {'error': str(e)}}, exc_info=True)
             return {}
 
     def get_secret(self, key: str):
