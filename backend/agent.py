@@ -25,17 +25,42 @@ class ResearchAgent:
     def scrape_webpage(self, url: str, max_chars: int = 5000) -> Dict[str, str]:
         return self.search_service.scrape_webpage(url, max_chars)
 
-    def gather_info(self, name: str, company: str = "", additional_info: str = "", serper_api_key: str = None) -> Dict:
+    def gather_info(self, name: str, company: str = "", additional_info: str = "", serper_api_key: str = None, bypass_cache: bool = False) -> Dict:
         """Orchestrates the research process."""
         search_query = f"{name} {company} linkedin profile professional bio".strip()
         if additional_info:
             search_query += f" {additional_info}"
         
-        # 1. General Search
-        if serper_api_key:
-            general_results = self.search_serper(search_query, serper_api_key, max_results=5)
+        # Check cache first (using search_data for exact matching)
+        search_data = {"query": search_query, "source": "serper" if serper_api_key else "ddg"}
+        cached_search = self.db.check_existing_log(
+            action_type="search_query",
+            search_data=search_data,
+            bypass_cache=bypass_cache
+        )
+        
+        if cached_search:
+            logger.info("Cache hit for gather_info search", extra={'extra_data': {'query': search_query}})
+            try:
+                general_results = json.loads(cached_search)
+            except json.JSONDecodeError:
+                logger.warning("Failed to decode cached search results, performing fresh search")
+                general_results = []
         else:
-            general_results = self.search_web(search_query, max_results=5)
+            # 1. General Search
+            if serper_api_key:
+                general_results = self.search_serper(search_query, serper_api_key, max_results=5)
+            else:
+                general_results = self.search_web(search_query, max_results=5)
+            
+            # Cache the search results
+            self.db.log_interaction(
+                action_type="search_query",
+                search_data=search_data,
+                model_input="N/A",
+                model_output="N/A",
+                final_output=json.dumps(general_results)
+            )
         
         return {
             "query": search_query,
@@ -138,10 +163,37 @@ class ResearchAgent:
         # Step 2: Execute Searches
         all_results = []
         for q in queries:
-            if serper_api_key:
-                results = self.search_service.search_serper(q, serper_api_key, max_results=10)
+            # Check cache first (using search_data for exact matching)
+            search_data = {"query": q, "source": "serper" if serper_api_key else "ddg"}
+            cached_search = self.db.check_existing_log(
+                action_type="search_query",
+                search_data=search_data,
+                bypass_cache=bypass_cache
+            )
+            
+            if cached_search:
+                logger.info("Cache hit for search query", extra={'extra_data': {'query': q}})
+                try:
+                    results = json.loads(cached_search)
+                except json.JSONDecodeError:
+                    logger.warning("Failed to decode cached search results, performing fresh search")
+                    results = []
             else:
-                results = self.search_service.search_web(q, max_results=10)
+                # Perform actual search
+                if serper_api_key:
+                    results = self.search_service.search_serper(q, serper_api_key, max_results=10)
+                else:
+                    results = self.search_service.search_web(q, max_results=10)
+                
+                # Cache the search results
+                self.db.log_interaction(
+                    action_type="search_query",
+                    search_data=search_data,
+                    model_input="N/A",
+                    model_output="N/A",
+                    final_output=json.dumps(results)
+                )
+            
             all_results.extend(results)
         
         # Deduplicate results based on URL
