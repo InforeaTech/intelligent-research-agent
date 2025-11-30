@@ -122,6 +122,24 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info("Profile generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
                 return response.text
+            elif provider == "grok":
+                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-beta', 'prompt_length': len(prompt)}})
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.x.ai/v1",
+                )
+                response = client.chat.completions.create(
+                    model="grok-beta",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful professional research assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.8
+                )
+                duration_ms = (time.time() - start_time) * 1000
+                response_text = response.choices[0].message.content
+                logger.info("Profile generation completed", extra={'extra_data': {'provider': 'grok', 'duration_ms': round(duration_ms, 2), 'response_length': len(response_text)}})
+                return response_text
             else:
                 logger.info("Calling OpenAI API", extra={'extra_data': {'model': 'gpt-4o', 'prompt_length': len(prompt)}})
                 client = OpenAI(api_key=api_key)
@@ -176,6 +194,24 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info("Note generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
                 return response.text
+            elif provider == "grok":
+                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-beta', 'prompt_length': len(prompt)}})
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.x.ai/v1",
+                )
+                response = client.chat.completions.create(
+                    model="grok-beta",
+                    messages=[
+                        {"role": "system", "content": "You are an expert networking assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.8
+                )
+                duration_ms = (time.time() - start_time) * 1000
+                response_text = response.choices[0].message.content
+                logger.info("Note generation completed", extra={'extra_data': {'provider': 'grok', 'duration_ms': round(duration_ms, 2), 'response_length': len(response_text)}})
+                return response_text
             else:
                 logger.info("Calling OpenAI API", extra={'extra_data': {'model': 'gpt-4o', 'prompt_length': len(prompt)}})
                 client = OpenAI(api_key=api_key)

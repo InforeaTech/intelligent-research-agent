@@ -8,7 +8,7 @@ class ProfileRequest(BaseModel):
     company: str = ""
     additional_info: str = ""
     api_key: str
-    model_provider: str = "gemini"  # gemini or openai
+    model_provider: str = "gemini"  # gemini, openai, or grok
     search_provider: str = "ddg"  # ddg or serper
     serper_api_key: Optional[str] = None
     bypass_cache: bool = False
@@ -49,7 +49,7 @@ class NoteRequest(BaseModel):
     tone: str = "professional"
     context: str = ""
     api_key: str
-    model_provider: str = "gemini"  # gemini or openai
+    model_provider: str = "gemini"  # gemini, openai, or grok
     bypass_cache: bool = False
 
 class SecretRequest(BaseModel):

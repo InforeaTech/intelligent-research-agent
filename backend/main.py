@@ -83,6 +83,8 @@ def research_profile(request: ProfileRequest):
         # Determine API Key based on provider
         if request.model_provider == "gemini":
             api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+        elif request.model_provider == "grok":
+            api_key = request.api_key or secret_manager.get_secret("GROK_API_KEY") or os.getenv("GROK_API_KEY")
         else:
             api_key = request.api_key or secret_manager.get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
         
@@ -163,6 +165,8 @@ def research_profile(request: ProfileRequest):
 def generate_note(request: NoteRequest):
     if request.model_provider == "gemini":
         api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    elif request.model_provider == "grok":
+        api_key = request.api_key or secret_manager.get_secret("GROK_API_KEY") or os.getenv("GROK_API_KEY")
     else:
         api_key = request.api_key or secret_manager.get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     
