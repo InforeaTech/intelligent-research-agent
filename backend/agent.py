@@ -33,14 +33,40 @@ class ResearchAgent:
         
         # 1. General Search
         if serper_api_key:
-            general_results = self.search_serper(search_query, serper_api_key, max_results=5)
+            source = "Serper"
         else:
-            general_results = self.search_web(search_query, max_results=5)
+            source = "DuckDuckGo"
+
+        # Check cache for search query
+        search_data_key = {"query": search_query, "source": source}
+        cached_search = self.db.check_existing_log(
+            action_type="search_query",
+            search_data=search_data_key,
+            bypass_cache=False
+        )
+
+        if cached_search:
+            logger.info("Cache hit for gather_info search", extra={'extra_data': {'query': search_query}})
+            general_results = json.loads(cached_search)
+        else:
+            if serper_api_key:
+                general_results = self.search_serper(search_query, serper_api_key, max_results=5)
+            else:
+                general_results = self.search_web(search_query, max_results=5)
+            
+            # Log search results
+            self.db.log_interaction(
+                action_type="search_query",
+                search_data=search_data_key,
+                model_input=search_query,
+                model_output=json.dumps(general_results),
+                final_output=json.dumps(general_results)
+            )
         
         return {
             "query": search_query,
             "general_results": general_results,
-            "source": "Serper" if serper_api_key else "DuckDuckGo"
+            "source": source
         }
 
     def generate_profile(self, research_data: Dict, api_key: str, provider: str = "openai", bypass_cache: bool = False) -> tuple:
@@ -138,10 +164,31 @@ class ResearchAgent:
         # Step 2: Execute Searches
         all_results = []
         for q in queries:
-            if serper_api_key:
-                results = self.search_service.search_serper(q, serper_api_key, max_results=10)
+            # Check cache for each query
+            source = "Serper" if serper_api_key else "DuckDuckGo"
+            search_data_key = {"query": q, "source": source}
+            cached_search = self.db.check_existing_log(
+                action_type="search_query",
+                search_data=search_data_key,
+                bypass_cache=bypass_cache
+            )
+
+            if cached_search:
+                results = json.loads(cached_search)
             else:
-                results = self.search_service.search_web(q, max_results=10)
+                if serper_api_key:
+                    results = self.search_service.search_serper(q, serper_api_key, max_results=10)
+                else:
+                    results = self.search_service.search_web(q, max_results=10)
+                
+                # Log search results
+                self.db.log_interaction(
+                    action_type="search_query",
+                    search_data=search_data_key,
+                    model_input=q,
+                    model_output=json.dumps(results),
+                    final_output=json.dumps(results)
+                )
             all_results.extend(results)
         
         # Deduplicate results based on URL

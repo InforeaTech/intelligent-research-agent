@@ -94,11 +94,37 @@ def research_profile(request: ProfileRequest):
         if not api_key:
             raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
 
-        # 1. Gather Info
+        # CACHE LEVEL 1: Check for complete cached result (name + company → final profile)
+        # This skips both Serper API call AND LLM call
+        complete_cache_key = {
+            "name": request.name,
+            "company": request.company,
+            "additional_info": request.additional_info,
+            "search_provider": request.search_provider,
+            "model_provider": request.model_provider
+        }
+        
+        if not request.bypass_cache:
+            cached_complete = agent.db.check_existing_log(
+                action_type="complete_research",
+                search_data=complete_cache_key,
+                bypass_cache=False
+            )
+            
+            if cached_complete:
+                logger.info("Cache hit (Complete) - skipping both Serper and LLM", 
+                           extra={'extra_data': {'name': request.name, 'company': request.company}})
+                import json
+                cached_response = json.loads(cached_complete)
+                cached_response["from_cache"] = True
+                return cached_response
+
+        # CACHE LEVEL 2 & 3: Proceed with gather_info and generate_profile (which have their own caching)
+        # 1. Gather Info (has search query cache)
         logger.info("Gathering info", extra={'extra_data': {'name': request.name, 'search_provider': request.search_provider.upper()}})
         research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key)
         
-        # 2. Generate Profile
+        # 2. Generate Profile (has profile generation cache)
         logger.info("Generating profile", extra={'extra_data': {'model_provider': request.model_provider}})
         profile_text, from_cache, cached_note = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache)
         
@@ -113,6 +139,18 @@ def research_profile(request: ProfileRequest):
         if cached_note:
             response["cached_note"] = cached_note.get('note')
             response["cached_note_from_cache"] = True
+        
+        # Cache the complete result for future requests
+        if not request.bypass_cache:
+            import json
+            agent.db.log_interaction(
+                action_type="complete_research",
+                search_data=complete_cache_key,
+                model_input="Complete research request",
+                model_output="Complete research response",
+                final_output=json.dumps(response)
+            )
+            logger.info("Cached complete result", extra={'extra_data': {'name': request.name}})
         
         return response
     
