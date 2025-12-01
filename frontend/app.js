@@ -136,6 +136,7 @@ async function handleResearch() {
     const apiKey = apiKeyInput.value.trim();
     const modelProvider = modelProviderSelect.value;
     const serperKey = serperKeyInput.value.trim();
+    const bypassCache = document.getElementById('bypassCacheResearch').checked;
 
     if (!name) {
         alert('Please enter a name.');
@@ -152,7 +153,8 @@ async function handleResearch() {
             additional_info: additionalInfo,
             api_key: apiKey,
             model_provider: modelProvider,
-            search_provider: searchProviderSelect.value
+            search_provider: searchProviderSelect.value,
+            bypass_cache: bypassCache
         };
 
         if (searchProviderSelect.value === 'serper') {
@@ -274,6 +276,7 @@ async function handleGenerateNote() {
     const context = document.getElementById('noteContext').value;
     const apiKey = apiKeyInput.value.trim();
     const modelProvider = modelProviderSelect.value;
+    const bypassCache = document.getElementById('bypassCacheNote').checked;
 
     generateNoteBtn.disabled = true;
     generateNoteBtn.textContent = 'Generating...';
@@ -289,7 +292,8 @@ async function handleGenerateNote() {
                 tone,
                 context,
                 api_key: apiKey,
-                model_provider: modelProvider
+                model_provider: modelProvider,
+                bypass_cache: bypassCache
             })
         });
 

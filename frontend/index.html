@@ -22,6 +22,10 @@
                 <h1>Research<span>Agent</span></h1>
             </div>
             <div class="api-key-container">
+                <div id="userProfile" class="user-profile">
+                    <!-- User info will be injected here by app.js -->
+                </div>
+
                 <div class="settings-row">
                     <select id="modelProvider">
                         <option value="openai">OpenAI (GPT-4o)</option>
@@ -58,6 +62,14 @@
                         <input type="text" id="additionalInfo" placeholder="e.g. CEO, Seattle">
                     </div>
                 </div>
+
+                <div class="control-group" style="margin-top: 12px;">
+                    <label style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                        <input type="checkbox" id="bypassCacheResearch" style="width: auto; cursor: pointer;">
+                        <span>⚡ Bypass Cache (force fresh research)</span>
+                    </label>
+                </div>
+
                 <button id="researchBtn" class="btn-primary">
                     <span class="btn-text">Generate Profile</span>
                     <span class="loader hidden"></span>
@@ -111,6 +123,13 @@
                         <div class="control-group full-width">
                             <label>Context / Reason</label>
                             <input type="text" id="noteContext" placeholder="e.g. Discussing AI partnership...">
+                        </div>
+
+                        <div class="control-group full-width" style="margin-top: 8px;">
+                            <label style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
+                                <input type="checkbox" id="bypassCacheNote" style="width: auto; cursor: pointer;">
+                                <span>⚡ Bypass Cache (force fresh generation)</span>
+                            </label>
                         </div>
 
                         <button id="generateNoteBtn" class="btn-secondary">Generate Note</button>
