@@ -24,6 +24,22 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Create users table for authentication
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT,
+                picture TEXT,
+                provider TEXT NOT NULL,
+                provider_user_id TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(provider, provider_user_id)
+            )
+        ''')
+        
+        # Create logs table with user_id
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,14 +49,34 @@ class DatabaseManager:
                 search_data JSON,
                 model_input TEXT,
                 model_output TEXT,
-                final_output TEXT
+                final_output TEXT,
+                user_id INTEGER,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         ''')
+        
+        # Check if user_id column exists in existing logs table (for migration)
+        cursor.execute("PRAGMA table_info(logs)")
+        columns = [column[1] for column in cursor.fetchall()]
+        if 'user_id' not in columns:
+            logger.info("Adding user_id column to existing logs table")
+            cursor.execute('ALTER TABLE logs ADD COLUMN user_id INTEGER REFERENCES users(id)')
         
         # Create index for performance optimization
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_action_timestamp 
             ON logs(action_type, timestamp DESC)
+        ''')
+        
+        # Create index for user lookups
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_user_email
+            ON users(email)
+        ''')
+        
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_logs_user_id
+            ON logs(user_id)
         ''')
         
         conn.commit()
@@ -52,7 +88,8 @@ class DatabaseManager:
                         search_data: Optional[Any] = None,
                         model_input: Optional[str] = None,
                         model_output: Optional[str] = None,
-                        final_output: Optional[str] = None):
+                        final_output: Optional[str] = None,
+                        user_id: Optional[int] = None):
         """Logs an interaction to the database."""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -64,8 +101,8 @@ class DatabaseManager:
         cursor.execute('''
             INSERT INTO logs (
                 timestamp, action_type, user_input, search_data, 
-                model_input, model_output, final_output
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                model_input, model_output, final_output, user_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             datetime.utcnow(),
             action_type,
@@ -73,12 +110,13 @@ class DatabaseManager:
             search_data_json,
             model_input,
             model_output,
-            final_output
+            final_output,
+            user_id
         ))
         
         conn.commit()
         conn.close()
-        logger.info("Logged interaction", extra={'extra_data': {'action_type': action_type}})
+        logger.info("Logged interaction", extra={'extra_data': {'action_type': action_type, 'user_id': user_id}})
 
     def get_logs(self, limit: int = 10):
         """Retrieve recent logs."""
@@ -214,4 +252,141 @@ class DatabaseManager:
                 }
         
         return None
+
+    # User Management Methods for OAuth Authentication
+    
+    def create_or_update_user(self, email: str, name: Optional[str], picture: Optional[str], 
+                              provider: str, provider_user_id: str) -> Dict[str, Any]:
+        """
+        Create a new user or update existing user on login.
+        
+        Args:
+            email: User's email address
+            name: User's display name
+            picture: Profile picture URL
+            provider: OAuth provider ('google', 'microsoft', 'github')
+            provider_user_id: User ID from OAuth provider
+            
+        Returns:
+            Dictionary containing user information
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        try:
+            # Try to find existing user by provider and provider_user_id
+            cursor.execute(
+                'SELECT * FROM users WHERE provider = ? AND provider_user_id = ?',
+                (provider, provider_user_id)
+            )
+            existing_user = cursor.fetchone()
+            
+            if existing_user:
+                # Update existing user
+                cursor.execute('''
+                    UPDATE users 
+                    SET email = ?, name = ?, picture = ?, last_login = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (email, name, picture, existing_user['id']))
+                user_id = existing_user['id']
+                logger.info(f"Updated existing user", extra={'extra_data': {'user_id': user_id, 'email': email}})
+            else:
+                # Create new user
+                cursor.execute('''
+                    INSERT INTO users (email, name, picture, provider, provider_user_id)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (email, name, picture, provider, provider_user_id))
+                user_id = cursor.lastrowid
+                logger.info(f"Created new user", extra={'extra_data': {'user_id': user_id, 'email': email, 'provider': provider}})
+            
+            conn.commit()
+            
+            # Fetch and return the user
+            cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+            user_row = cursor.fetchone()
+            
+            return dict(user_row)
+            
+        finally:
+            conn.close()
+    
+    def get_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve user by ID.
+        
+        Args:
+            user_id: User's database ID
+            
+        Returns:
+            Dictionary containing user information, or None if not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        return dict(row) if row else None
+    
+    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve user by email address.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            Dictionary containing user information, or None if not found
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+        row = cursor.fetchone()
+        conn.close()
+        
+        return dict(row) if row else None
+    
+    def update_last_login(self, user_id: int):
+        """
+        Update user's last login timestamp.
+        
+        Args:
+            user_id: User's database ID
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?',
+            (user_id,)
+        )
+        
+        conn.commit()
+        conn.close()
+        logger.debug(f"Updated last login", extra={'extra_data': {'user_id': user_id}})
+    
+    def link_log_to_user(self, log_id: int, user_id: int):
+        """
+        Link a log entry to a user.
+        
+        Args:
+            log_id: Log entry ID
+            user_id: User ID to link
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            'UPDATE logs SET user_id = ? WHERE id = ?',
+            (user_id, log_id)
+        )
+        
+        conn.commit()
+        conn.close()
+        logger.debug(f"Linked log to user", extra={'extra_data': {'log_id': log_id, 'user_id': user_id}})
 

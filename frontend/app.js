@@ -1,4 +1,8 @@
 const API_BASE = 'http://localhost:8000/api';
+const AUTH_BASE = 'http://localhost:8000/auth';
+
+// Authentication State
+let currentUser = null;
 
 // DOM Elements
 const researchBtn = document.getElementById('researchBtn');
@@ -12,6 +16,100 @@ const apiKeyInput = document.getElementById('apiKey');
 const modelProviderSelect = document.getElementById('modelProvider');
 const searchProviderSelect = document.getElementById('searchProvider');
 const serperKeyInput = document.getElementById('serperKey');
+
+// ==================== Authentication Functions ====================
+
+/**
+ * Check if user is authenticated
+ */
+async function checkAuth() {
+    try {
+        const response = await fetch(`${AUTH_BASE}/user`, {
+            credentials: 'include' // Include cookies
+        });
+
+        if (response.ok) {
+            currentUser = await response.json();
+            displayUserInfo(currentUser);
+            return true;
+        } else {
+            currentUser = null;
+            // Redirect to login if not authenticated
+            window.location.href = '/login.html';
+            return false;
+        }
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        currentUser = null;
+        window.location.href = '/login.html';
+        return false;
+    }
+}
+
+/**
+ * Display user information in header
+ */
+function displayUserInfo(user) {
+    const apiKeyContainer = document.querySelector('.api-key-container');
+
+    // Check if user profile already exists
+    let userProfileDiv = document.getElementById('userProfile');
+    if (!userProfileDiv) {
+        userProfileDiv = document.createElement('div');
+        userProfileDiv.id = 'userProfile';
+        userProfileDiv.className = 'user-profile';
+
+        // Insert before API key container
+        apiKeyContainer.parentNode.insertBefore(userProfileDiv, apiKeyContainer);
+    }
+
+    // Build user profile HTML
+    const initials = user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : user.email[0].toUpperCase();
+
+    userProfileDiv.innerHTML = `
+        ${user.picture
+            ? `<img src="${user.picture}" alt="${user.name || 'User'}" class="user-avatar">`
+            : `<div class="user-avatar-placeholder">${initials}</div>`
+        }
+        <div class="user-info">
+            <div class="user-name">${user.name || 'User'}</div>
+            <div class="user-email">${user.email}</div>
+        </div>
+        <button class="logout-btn" onclick="logout()">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+    `;
+}
+
+/**
+ * Logout user
+ */
+async function logout() {
+    try {
+        await fetch(`${AUTH_BASE}/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        currentUser = null;
+        window.location.href = '/login.html';
+    } catch (error) {
+        console.error('Logout failed:', error);
+        // Force redirect even if logout fails
+        window.location.href = '/login.html';
+    }
+}
+
+/**
+ * Handle 401 Unauthorized responses
+ */
+function handle401(response) {
+    if (response.status === 401) {
+        window.location.href = '/login.html';
+        return true;
+    }
+    return false;
+}
 
 // State
 let currentProfileText = "";
@@ -64,8 +162,11 @@ async function handleResearch() {
         const response = await fetch(`${API_BASE}/research`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // Include auth cookies
             body: JSON.stringify(payload)
         });
+
+        if (handle401(response)) return; // Redirect to login if not authenticated
 
         if (!response.ok) {
             const err = await response.json();
@@ -181,6 +282,7 @@ async function handleGenerateNote() {
         const response = await fetch(`${API_BASE}/generate-note`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // Include auth cookies
             body: JSON.stringify({
                 profile_text: currentProfileText,
                 length,
@@ -190,6 +292,8 @@ async function handleGenerateNote() {
                 model_provider: modelProvider
             })
         });
+
+        if (handle401(response)) return; // Redirect to login if not authenticated
 
         if (!response.ok) {
             const err = await response.json();
@@ -257,3 +361,11 @@ async function copyToClipboard(text) {
         console.error('Failed to copy:', err);
     }
 }
+
+// ==================== Initialize ====================
+
+// Check authentication on page load
+window.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+});
+

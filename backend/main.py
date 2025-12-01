@@ -1,7 +1,9 @@
 import os
 import fastapi
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from dotenv import load_dotenv
 from agent import ResearchAgent
@@ -10,11 +12,26 @@ from schemas import (
     NoteRequest, NoteResponse,
     DeepResearchRequest, DeepResearchResponse,
     SecretRequest, SecretResponse,
-    StatusResponse
+    StatusResponse,
+    User, LoginResponse, AuthCallbackResponse
 )
 from secrets_manager import SecretManager
 from logger_config import get_logger, set_request_id, log_performance
 import uuid
+import secrets as secrets_lib
+
+# Import auth functions
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from auth import (
+    get_authorization_url,
+    exchange_code_for_token,
+    get_user_info,
+    create_access_token,
+    verify_access_token,
+    FRONTEND_URL
+)
+from database import DatabaseManager
 
 load_dotenv()
 
@@ -72,6 +89,148 @@ def get_secret(key: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== Authentication Endpoints ====================
+
+@app.get("/auth/login/{provider}")
+async def login(provider: str):
+    """
+    Initiate OAuth login flow for the specified provider.
+    Redirects user to provider's authorization page.
+    """
+    if provider not in ["google", "microsoft", "github"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    
+    # Generate random state for CSRF protection
+    state = secrets_lib.token_urlsafe(32)
+    
+    try:
+        # Get authorization URL
+        auth_url = get_authorization_url(provider, state)
+        
+        logger.info(f"OAuth login initiated", extra={'extra_data': {'provider': provider}})
+        
+        # Redirect to OAuth provider
+        response = RedirectResponse(url=auth_url)
+        # Store state in cookie for verification
+        response.set_cookie(
+            key="oauth_state",
+            value=state,
+            httponly=True,
+            max_age=600,  # 10 minutes
+            samesite="lax"
+        )
+        return response
+        
+    except Exception as e:
+        logger.error(f"OAuth login failed", extra={'extra_data': {'provider': provider, 'error': str(e)}})
+        raise HTTPException(status_code=500, detail=f"Failed to initiate login: {str(e)}")
+
+@app.get("/auth/callback/{provider}")
+async def callback(provider: str, code: str, state: str, request: Request):
+    """
+    Handle OAuth callback from provider.
+    Exchange code for token, fetch user info, create/update user, and set session cookie.
+    """
+    try:
+        # Verify state parameter to prevent CSRF
+        stored_state = request.cookies.get("oauth_state")
+        if not stored_state or stored_state != state:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        
+        # Exchange code for access token
+        token_response = exchange_code_for_token(provider, code)
+        access_token = token_response.get("access_token")
+        
+        if not access_token:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+        
+        # Fetch user info from provider
+        user_info = get_user_info(provider, access_token)
+        
+        if not user_info.get("email"):
+            raise HTTPException(status_code=400, detail="Failed to get user email from provider")
+        
+        # Create or update user in database
+        db = DatabaseManager()
+        user_record = db.create_or_update_user(
+            email=user_info["email"],
+            name=user_info.get("name"),
+            picture=user_info.get("picture"),
+            provider=provider,
+            provider_user_id=user_info["provider_user_id"]
+        )
+        
+        # Create JWT token
+        token_data = {
+            "user_id": user_record["id"],
+            "email": user_record["email"],
+            "name": user_record.get("name")
+        }
+        jwt_token = create_access_token(token_data)
+        
+        # Redirect to frontend with success
+        response = RedirectResponse(url=f"{FRONTEND_URL}/index.html")
+        
+        # Set JWT cookie (httponly for security)
+        response.set_cookie(
+            key="access_token",
+            value=jwt_token,
+            httponly=True,
+            max_age=86400,  # 24 hours
+            samesite="lax",
+            secure=False  # Set to True in production with HTTPS
+        )
+        
+        # Clear oauth_state cookie
+        response.delete_cookie("oauth_state")
+        
+        logger.info(f"User authenticated", extra={'extra_data': {'user_id': user_record['id'], 'provider': provider}})
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"OAuth callback failed", extra={'extra_data': {'provider': provider, 'error': str(e)}})
+        # Redirect to frontend with error
+        return RedirectResponse(url=f"{FRONTEND_URL}/login.html?error={str(e)}")
+
+@app.get("/auth/user")
+async def get_current_user(request: Request):
+    """
+    Get current authenticated user from JWT token.
+    Returns user information if authenticated, 401 if not.
+    """
+    token = request.cookies.get("access_token")
+    
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    payload = verify_access_token(token)
+    
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    # Get full user info from database
+    db = DatabaseManager()
+    user = db.get_user_by_id(payload["user_id"])
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return User(**user)
+
+@app.post("/auth/logout")
+async def logout(response: Response):
+    """
+    Logout user by clearing the access token cookie.
+    """
+    response.delete_cookie("access_token")
+    logger.info("User logged out")
+    return {"status": "success", "message": "Logged out successfully"}
+
+# ==================== Research Endpoints ====================
 
 @app.post("/api/research", response_model=ProfileResponse)
 def research_profile(request: ProfileRequest):
@@ -189,10 +348,13 @@ def generate_note(request: NoteRequest):
     }
 
 @app.post("/api/deep-research", response_model=DeepResearchResponse)
-def deep_research(request: DeepResearchRequest):
+def deep_research(request: DeepResearchRequest, req: Request):
     """
     Performs deep research on a topic using Gemini 1.5 Pro.
     """
+    # Get current user ID
+    user_id = get_current_user_id(req)
+    
     api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     
     # Only use Serper if explicitly requested by search_provider
@@ -204,11 +366,19 @@ def deep_research(request: DeepResearchRequest):
         raise HTTPException(status_code=400, detail="Gemini API Key is required for deep research.")
 
     try:
-        logger.info("Deep research", extra={'extra_data': {'topic': request.topic, 'search_provider': request.search_provider.upper()}})
+        logger.info("Deep research", extra={'extra_data': {'topic': request.topic, 'search_provider': request.search_provider.upper(), 'user_id': user_id}})
         report = agent.perform_deep_research(request.topic, api_key, serper_key, bypass_cache=request.bypass_cache)
         return {"report": report}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Mount static files (frontend)
+# This must be after API routes to avoid shadowing
+frontend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
+else:
+    logger.warning(f"Frontend directory not found at {frontend_dir}")
 
 if __name__ == "__main__":
     import uvicorn

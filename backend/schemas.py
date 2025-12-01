@@ -79,3 +79,22 @@ class SecretResponse(BaseModel):
 class StatusResponse(BaseModel):
     status: str
     message: str
+
+# --- Authentication Models ---
+
+class User(BaseModel):
+    id: int
+    email: str
+    name: Optional[str] = None
+    picture: Optional[str] = None
+    provider: str
+
+class LoginResponse(BaseModel):
+    authorization_url: str
+    state: str
+
+class AuthCallbackResponse(BaseModel):
+    success: bool
+    user: Optional[User] = None
+    message: str = ""
+
