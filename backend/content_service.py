@@ -2,6 +2,7 @@ import json
 import time
 import google.generativeai as genai
 from openai import OpenAI
+import httpx
 from typing import Dict, Any, List
 from logger_config import get_logger
 
@@ -123,13 +124,14 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                 logger.info("Profile generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
                 return response.text
             elif provider == "grok":
-                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-beta', 'prompt_length': len(prompt)}})
+                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-4-1-fast', 'prompt_length': len(prompt)}})
                 client = OpenAI(
                     api_key=api_key,
                     base_url="https://api.x.ai/v1",
+                    http_client=httpx.Client()
                 )
                 response = client.chat.completions.create(
-                    model="grok-beta",
+                    model="grok-4-1-fast",
                     messages=[
                         {"role": "system", "content": "You are a helpful professional research assistant."},
                         {"role": "user", "content": prompt}
@@ -142,7 +144,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                 return response_text
             else:
                 logger.info("Calling OpenAI API", extra={'extra_data': {'model': 'gpt-4o', 'prompt_length': len(prompt)}})
-                client = OpenAI(api_key=api_key)
+                client = OpenAI(api_key=api_key, http_client=httpx.Client())
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
@@ -195,13 +197,14 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                 logger.info("Note generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
                 return response.text
             elif provider == "grok":
-                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-beta', 'prompt_length': len(prompt)}})
+                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-4-1-fast', 'prompt_length': len(prompt)}})
                 client = OpenAI(
                     api_key=api_key,
                     base_url="https://api.x.ai/v1",
+                    http_client=httpx.Client()
                 )
                 response = client.chat.completions.create(
-                    model="grok-beta",
+                    model="grok-4-1-fast",
                     messages=[
                         {"role": "system", "content": "You are an expert networking assistant."},
                         {"role": "user", "content": prompt}
@@ -214,7 +217,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
                 return response_text
             else:
                 logger.info("Calling OpenAI API", extra={'extra_data': {'model': 'gpt-4o', 'prompt_length': len(prompt)}})
-                client = OpenAI(api_key=api_key)
+                client = OpenAI(api_key=api_key, http_client=httpx.Client())
                 response = client.chat.completions.create(
                     model="gpt-4o",
                     messages=[
