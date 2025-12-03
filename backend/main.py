@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 import fastapi
 from fastapi import FastAPI, HTTPException, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,13 +32,33 @@ from auth import (
     verify_access_token,
     FRONTEND_URL
 )
-from database import DatabaseManager
+
+from models import get_db, init_db, SessionLocal
+from repositories import UserRepository, LogRepository
+from sqlalchemy.orm import Session
+from fastapi import Depends
 
 load_dotenv()
 
 logger = get_logger(__name__)
 
 app = FastAPI(title="Intelligent Research Agent")
+
+# Database startup event
+@app.on_event("startup")
+async def startup_event():
+    """Initialize SQLAlchemy database on startup."""
+    init_db()
+    logger.info("SQLAlchemy ORM database initialized")
+
+# Database session dependency
+def get_db_session() -> Session:
+    """Get database session for dependency injection."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 # Request correlation middleware
 @app.middleware("http")
@@ -127,7 +148,7 @@ async def login(provider: str):
         raise HTTPException(status_code=500, detail=f"Failed to initiate login: {str(e)}")
 
 @app.get("/auth/callback/{provider}")
-async def callback(provider: str, code: str, state: str, request: Request):
+async def callback(provider: str, code: str, state: str, request: Request, db: Session = Depends(get_db_session)):
     """
     Handle OAuth callback from provider.
     Exchange code for token, fetch user info, create/update user, and set session cookie.
@@ -151,9 +172,9 @@ async def callback(provider: str, code: str, state: str, request: Request):
         if not user_info.get("email"):
             raise HTTPException(status_code=400, detail="Failed to get user email from provider")
         
-        # Create or update user in database
-        db = DatabaseManager()
-        user_record = db.create_or_update_user(
+        # Create or update user in database using UserRepository
+        user_repo = UserRepository(db)
+        user = user_repo.create_or_update(
             email=user_info["email"],
             name=user_info.get("name"),
             picture=user_info.get("picture"),
@@ -163,9 +184,9 @@ async def callback(provider: str, code: str, state: str, request: Request):
         
         # Create JWT token
         token_data = {
-            "user_id": user_record["id"],
-            "email": user_record["email"],
-            "name": user_record.get("name")
+            "user_id": user.id,
+            "email": user.email,
+            "name": user.name
         }
         jwt_token = create_access_token(token_data)
         
@@ -185,7 +206,7 @@ async def callback(provider: str, code: str, state: str, request: Request):
         # Clear oauth_state cookie
         response.delete_cookie("oauth_state")
         
-        logger.info(f"User authenticated", extra={'extra_data': {'user_id': user_record['id'], 'provider': provider}})
+        logger.info(f"User authenticated", extra={'extra_data': {'user_id': user.id, 'provider': provider}})
         
         return response
         
@@ -197,7 +218,7 @@ async def callback(provider: str, code: str, state: str, request: Request):
         return RedirectResponse(url=f"{FRONTEND_URL}/login.html?error={str(e)}")
 
 @app.get("/auth/user")
-async def get_current_user(request: Request):
+async def get_current_user(request: Request, db: Session = Depends(get_db_session)):
     """
     Get current authenticated user from JWT token.
     Returns user information if authenticated, 401 if not.
@@ -212,14 +233,23 @@ async def get_current_user(request: Request):
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
-    # Get full user info from database
-    db = DatabaseManager()
-    user = db.get_user_by_id(payload["user_id"])
+    # Get full user info from database using UserRepository
+    user_repo = UserRepository(db)
+    user = user_repo.get(payload["user_id"])
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return User(**user)
+    return User(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        picture=user.picture,
+        provider=user.provider,
+        provider_user_id=user.provider_user_id,
+        created_at=user.created_at,
+        last_login=user.last_login
+    )
 
 @app.post("/auth/logout")
 async def logout(response: Response):
@@ -230,15 +260,35 @@ async def logout(response: Response):
     logger.info("User logged out")
     return {"status": "success", "message": "Logged out successfully"}
 
+# ==================== Helper Functions ====================
+
+def get_current_user_id(request: Request) -> Optional[int]:
+    """
+    Extract user ID from JWT token if present.
+    Returns None if no token or invalid token (doesn't raise exception).
+    """
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    
+    payload = verify_access_token(token)
+    if not payload:
+        return None
+    
+    return payload.get("user_id")
+
 # ==================== Research Endpoints ====================
 
 @app.post("/api/research", response_model=ProfileResponse)
-def research_profile(request: ProfileRequest):
+def research_profile(request: ProfileRequest, req: Request, db: Session = Depends(get_db_session)):
     """
     1. Search web for info.
     2. Generate profile using LLM.
     """
     try:
+        # Get current user ID if authenticated
+        user_id = get_current_user_id(req)
+        
         # Determine API Key based on provider
         if request.model_provider == "gemini":
             api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -255,8 +305,7 @@ def research_profile(request: ProfileRequest):
         if not api_key:
             raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
 
-        # CACHE LEVEL 1: Check for complete cached result (name + company → final profile)
-        # This skips both Serper API call AND LLM call
+        # CACHE LEVEL 1: Check for complete cached result using LogRepository
         complete_cache_key = {
             "name": request.name,
             "company": request.company,
@@ -266,10 +315,10 @@ def research_profile(request: ProfileRequest):
         }
         
         if not request.bypass_cache:
-            cached_complete = agent.db.check_existing_log(
+            log_repo = LogRepository(db)
+            cached_complete = log_repo.check_cache(
                 action_type="complete_research",
-                search_data=complete_cache_key,
-                bypass_cache=False
+                search_data=complete_cache_key
             )
             
             if cached_complete:
@@ -283,11 +332,11 @@ def research_profile(request: ProfileRequest):
         # CACHE LEVEL 2 & 3: Proceed with gather_info and generate_profile (which have their own caching)
         # 1. Gather Info (has search query cache)
         logger.info("Gathering info", extra={'extra_data': {'name': request.name, 'search_provider': request.search_provider.upper()}})
-        research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key)
+        research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key, db=db)
         
         # 2. Generate Profile (has profile generation cache)
         logger.info("Generating profile", extra={'extra_data': {'model_provider': request.model_provider}})
-        profile_text, from_cache, cached_note = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache)
+        profile_text, from_cache, cached_note = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache, db=db)
         
         # Prepare response
         response = {
@@ -301,11 +350,13 @@ def research_profile(request: ProfileRequest):
             response["cached_note"] = cached_note.get('note')
             response["cached_note_from_cache"] = True
         
-        # Cache the complete result for future requests
+        # Cache the complete result for future requests using LogRepository
         if not request.bypass_cache:
             import json
-            agent.db.log_interaction(
+            log_repo = LogRepository(db)
+            log_repo.create_log(
                 action_type="complete_research",
+                user_id=user_id,
                 search_data=complete_cache_key,
                 model_input="Complete research request",
                 model_output="Complete research response",
@@ -321,7 +372,7 @@ def research_profile(request: ProfileRequest):
         raise HTTPException(status_code=422, detail=f"Invalid input: {error_msg}")
 
 @app.post("/api/generate-note", response_model=NoteResponse)
-def generate_note(request: NoteRequest):
+def generate_note(request: NoteRequest, req: Request, db: Session = Depends(get_db_session)):
     if request.model_provider == "gemini":
         api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
     elif request.model_provider == "grok":
@@ -339,7 +390,8 @@ def generate_note(request: NoteRequest):
         request.context, 
         api_key,
         request.model_provider,
-        bypass_cache=request.bypass_cache
+        bypass_cache=request.bypass_cache,
+        db=db
     )
     
     return {
@@ -348,7 +400,7 @@ def generate_note(request: NoteRequest):
     }
 
 @app.post("/api/deep-research", response_model=DeepResearchResponse)
-def deep_research(request: DeepResearchRequest, req: Request):
+def deep_research(request: DeepResearchRequest, req: Request, db: Session = Depends(get_db_session)):
     """
     Performs deep research on a topic using Gemini 1.5 Pro.
     """
@@ -367,7 +419,7 @@ def deep_research(request: DeepResearchRequest, req: Request):
 
     try:
         logger.info("Deep research", extra={'extra_data': {'topic': request.topic, 'search_provider': request.search_provider.upper(), 'user_id': user_id}})
-        report = agent.perform_deep_research(request.topic, api_key, serper_key, bypass_cache=request.bypass_cache)
+        report = agent.perform_deep_research(request.topic, api_key, serper_key, bypass_cache=request.bypass_cache, db=db)
         return {"report": report}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
