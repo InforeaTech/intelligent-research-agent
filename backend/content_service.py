@@ -118,9 +118,9 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         start_time = time.time()
         try:
             if provider == "gemini":
-                logger.info("Calling Gemini API", extra={'extra_data': {'model': 'gemini-3-pro-preview', 'prompt_length': len(prompt)}})
+                logger.info("Calling Gemini API", extra={'extra_data': {'model': 'gemini-2.5-flash', 'prompt_length': len(prompt)}})
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-3-pro-preview')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(prompt)
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info("Profile generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
@@ -191,9 +191,9 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         start_time = time.time()
         try:
             if provider == "gemini":
-                logger.info("Calling Gemini API", extra={'extra_data': {'model': 'gemini-3-pro-preview', 'prompt_length': len(prompt)}})
+                logger.info("Calling Gemini API", extra={'extra_data': {'model': 'gemini-2.5-flash', 'prompt_length': len(prompt)}})
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-3-pro-preview')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(prompt)
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info("Note generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
@@ -241,7 +241,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         """Generates search queries for deep research."""
         logger.info("Starting research planning", extra={'extra_data': {'topic': topic}})
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-pro-preview')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         planning_prompt = f"""
         You are a senior research analyst. I need to research the following topic deeply:
@@ -255,7 +255,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         
         start_time = time.time()
         try:
-            logger.info("Calling Gemini API for research planning", extra={'extra_data': {'model': 'gemini-3-pro-preview'}})
+            logger.info("Calling Gemini API for research planning", extra={'extra_data': {'model': 'gemini-2.5-flash'}})
             plan_response = model.generate_content(planning_prompt)
             text = plan_response.text.strip()
             if text.startswith("```json"):
@@ -275,7 +275,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         """Synthesizes a deep research report."""
         logger.info("Starting report synthesis", extra={'extra_data': {'topic': topic, 'context_length': len(context_str)}})
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-pro-preview')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         report_prompt = f"""
         You are a senior research analyst. Write a comprehensive deep research report on "{topic}" based on the gathered information below.
@@ -293,7 +293,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         
         start_time = time.time()
         try:
-            logger.info("Calling Gemini API for report synthesis", extra={'extra_data': {'model': 'gemini-3-pro-preview', 'prompt_length': len(report_prompt)}})
+            logger.info("Calling Gemini API for report synthesis", extra={'extra_data': {'model': 'gemini-2.5-flash', 'prompt_length': len(report_prompt)}})
             report_response = model.generate_content(report_prompt)
             duration_ms = (time.time() - start_time) * 1000
             logger.info("Report synthesis completed", extra={'extra_data': {'duration_ms': round(duration_ms, 2), 'report_length': len(report_response.text)}})
@@ -484,7 +484,7 @@ Format the output as a detailed professional profile.
             
             # Initialize model with tools
             model = genai.GenerativeModel(
-                model_name='gemini-3-pro-preview',
+                model_name='gemini-2.5-flash',
                 tools=tools
             )
             
@@ -861,7 +861,7 @@ When you have sufficient information, provide a comprehensive research report.""
         try:
             # Initialize Gemini and tool executor
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-3-pro-preview')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             tool_executor = ToolExecutor(serper_api_key=serper_api_key)
             tools = get_tools_for_provider("gemini")
             

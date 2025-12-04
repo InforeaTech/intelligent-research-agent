@@ -409,12 +409,19 @@ def generate_note(request: NoteRequest, req: Request, db: Session = Depends(get_
 @app.post("/api/deep-research", response_model=DeepResearchResponse)
 def deep_research(request: DeepResearchRequest, req: Request, db: Session = Depends(get_db_session)):
     """
-    Performs deep research on a topic using Gemini 1.5 Pro.
+    Performs deep research on a topic using specified provider and mode.
     """
     # Get current user ID
     user_id = get_current_user_id(req)
     
-    api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    # Determine provider and get API key
+    provider = request.model_provider
+    if provider == "gemini":
+        api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    elif provider == "grok":
+        api_key = request.api_key or secret_manager.get_secret("GROK_API_KEY") or os.getenv("GROK_API_KEY")
+    else:
+        api_key = request.api_key or secret_manager.get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     
     # Only use Serper if explicitly requested by search_provider
     serper_key = None
@@ -422,13 +429,29 @@ def deep_research(request: DeepResearchRequest, req: Request, db: Session = Depe
         serper_key = request.serper_api_key or secret_manager.get_secret("SERPER_API_KEY") or os.getenv("SERPER_API_KEY")
 
     if not api_key:
-        raise HTTPException(status_code=400, detail="Gemini API Key is required for deep research.")
+        raise HTTPException(status_code=400, detail=f"{provider.capitalize()} API Key is required for deep research.")
 
     try:
-        logger.info("Deep research", extra={'extra_data': {'topic': request.topic, 'search_provider': request.search_provider.upper(), 'user_id': user_id}})
-        report = agent.perform_deep_research(request.topic, api_key, serper_key, bypass_cache=request.bypass_cache, db=db)
+        logger.info("Deep research", extra={'extra_data': {
+            'topic': request.topic, 
+            'provider': provider,
+            'mode': request.search_mode,
+            'search_provider': request.search_provider.upper(), 
+            'user_id': user_id
+        }})
+        
+        report = agent.deep_research_with_mode(
+            topic=request.topic,
+            api_key=api_key,
+            provider=provider,
+            serper_api_key=serper_key,
+            bypass_cache=request.bypass_cache,
+            search_mode=request.search_mode,
+            db=db
+        )
         return {"report": report}
     except Exception as e:
+        logger.error("Deep research failed", extra={'extra_data': {'error': str(e)}}, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # Mount static files (frontend)

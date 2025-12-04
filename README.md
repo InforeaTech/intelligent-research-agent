@@ -4,13 +4,16 @@ An advanced AI-powered research assistant that creates professional profiles and
 
 ## Features
 
-- 🔍 **Deep Research**: Multi-step research with web scraping and LLM synthesis
+- 🔍 **Deep Research**: Multi-step research with three modes (RAG, Tools, Hybrid)
+- 🤖 **Autonomous Agents**: LLM-driven tool usage for complex queries
 - 📊 **Profile Generation**: Automated professional profile creation
 - 💬 **Note Generation**: Personalized LinkedIn connection request messages
 - 💾 **Smart Caching**: 80% fuzzy matching with cache bypass option
 - 🔐 **Secure Secrets**: Encrypted API key management
 - 📝 **Comprehensive Logging**: SQLite-based interaction tracking
 - 🏗️ **Microservices Ready**: Modular architecture for easy scaling
+
+See [DEEP_RESEARCH.md](DEEP_RESEARCH.md) for detailed documentation on research capabilities.
 
 ## Architecture
 

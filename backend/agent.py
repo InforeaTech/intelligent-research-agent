@@ -326,3 +326,103 @@ class ResearchAgent:
                 final_output=report_text
             )
         return report_text
+
+    def deep_research_with_mode(self, topic: str, api_key: str, provider: str = "openai",
+                               serper_api_key: str = None, bypass_cache: bool = False,
+                               search_mode: str = None, db: Session = None) -> str:
+        """
+        Perform deep research using specified search mode.
+        
+        Args:
+            topic: Research topic
+            api_key: LLM API key
+            provider: LLM provider ('openai', 'gemini', 'grok')
+            serper_api_key: Optional Serper API key
+            bypass_cache: Skip cache lookup
+            search_mode: Override for search mode ('rag', 'tools', 'hybrid'). Uses config default if None.
+            db: Database session
+            
+        Returns:
+            Research report text
+        """
+        # Determine search mode
+        mode = search_mode or settings.SEARCH_MODE
+        logger.info(f"Starting deep research with mode: {mode}",
+                   extra={'extra_data': {'topic': topic, 'mode': mode, 'provider': provider}})
+        
+        if mode == "tools":
+            # Tools mode - LLM autonomously decides when to search
+            report_text = self.content_service.deep_research_with_tools(
+                topic=topic,
+                api_key=api_key,
+                provider=provider,
+                serper_api_key=serper_api_key
+            )
+            
+            # Log the research (no cache for tools mode currently)
+            if db:
+                log_repo = LogRepository(db)
+                log_repo.create_log(
+                    action_type="deep_research_tools",
+                    user_input={"topic": topic, "mode": "tools"},
+                    model_input=f"Tools mode research: {topic}",
+                    model_output=report_text,
+                    final_output=report_text
+                )
+            
+            return report_text
+        
+        elif mode == "hybrid":
+            # Hybrid mode - RAG first, then tools for refinement
+            # Step 1: Execute traditional RAG research
+            logger.info("Hybrid mode: Starting with RAG research")
+            rag_report = self.perform_deep_research(
+                topic=topic,
+                api_key=api_key,
+                serper_api_key=serper_api_key,
+                bypass_cache=bypass_cache,
+                db=db
+            )
+            
+            # Step 2: Pass RAG results as context to tools mode
+            logger.info("Hybrid mode: Refining with tools")
+            enhanced_topic = f"""{topic}
+
+Initial Research Context:
+{rag_report}
+
+Please review the above research and use tools to:
+1. Verify key facts
+2. Find any missing information
+3. Get more recent updates if needed
+4. Provide an enhanced final report"""
+            
+            final_report = self.content_service.deep_research_with_tools(
+                topic=enhanced_topic,
+                api_key=api_key,
+                provider=provider,
+                serper_api_key=serper_api_key
+            )
+            
+            # Log hybrid research
+            if db:
+                log_repo = LogRepository(db)
+                log_repo.create_log(
+                    action_type="deep_research_hybrid",
+                    user_input={"topic": topic, "mode": "hybrid"},
+                    model_input=f"Hybrid mode: RAG + Tools",
+                    model_output=final_report,
+                    final_output=final_report
+                )
+            
+            return final_report
+        
+        else:  # Default to RAG mode
+            # Traditional RAG mode (existing implementation)
+            return self.perform_deep_research(
+                topic=topic,
+                api_key=api_key,
+                serper_api_key=serper_api_key,
+                bypass_cache=bypass_cache,
+                db=db
+            )
