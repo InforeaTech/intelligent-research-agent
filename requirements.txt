@@ -4,6 +4,7 @@ openai==1.54.5
 ddgs==9.9.1
 python-dotenv==1.0.1
 pydantic
+pydantic-settings>=2.0.0
 beautifulsoup4==4.12.3
 requests==2.32.3
 google-generativeai==0.8.3

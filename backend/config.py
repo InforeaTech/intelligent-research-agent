@@ -1,41 +1,90 @@
 import os
 from typing import Optional
 
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    # Fallback for environments without pydantic-settings
+    from pydantic import BaseModel as BaseSettings
 
-class Settings:
-    """Application configuration settings."""
+
+class Settings(BaseSettings):
+    """Application configuration settings with .env support."""
     
-    # Database
-    DATABASE_TYPE: str = os.getenv("DB_TYPE", "sqlite")
+    # === LLM Provider Settings ===
+    DEFAULT_MODEL_PROVIDER: str = "gemini"
+    DEFAULT_SEARCH_PROVIDER: str = "ddg"
+    
+    # === OpenAI Settings ===
+    OPENAI_MODEL: str = "gpt-5-nano"
+    OPENAI_TEMPERATURE: float = 1.0
+    OPENAI_MAX_TOKENS: int = 4096
+    
+    # === Gemini Settings ===
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_TEMPERATURE: float = 0.7
+    GEMINI_MAX_TOKENS: int = 8192
+    
+    # === Grok Settings ===
+    GROK_MODEL: str = "grok-4-1-fast"
+    GROK_TEMPERATURE: float = 0.8
+    GROK_MAX_TOKENS: int = 4096
+    
+    # === Database Settings ===
+    DATABASE_TYPE: str = "sqlite"
     
     # SQLite
-    SQLITE_DATABASE_URL: str = os.getenv(
-        "SQLITE_DATABASE_URL", 
-        "sqlite:///./agent_logs.db"
-    )
+    SQLITE_DATABASE_URL: str = "sqlite:///./agent_logs.db"
     
     # PostgreSQL (for future)
-    POSTGRES_USER: Optional[str] = os.getenv("POSTGRES_USER")
-    POSTGRES_PASSWORD: Optional[str] = os.getenv("POSTGRES_PASSWORD")
-    POSTGRES_HOST: Optional[str] = os.getenv("POSTGRES_HOST", "localhost")
-    POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
-    POSTGRES_DB: Optional[str] = os.getenv("POSTGRES_DB")
+    POSTGRES_USER: Optional[str] = None
+    POSTGRES_PASSWORD: Optional[str] = None
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: str = "5432"
+    POSTGRES_DB: Optional[str] = None
     
     # MySQL (for future)
-    MYSQL_USER: Optional[str] = os.getenv("MYSQL_USER")
-    MYSQL_PASSWORD: Optional[str] = os.getenv("MYSQL_PASSWORD")
-    MYSQL_HOST: Optional[str] = os.getenv("MYSQL_HOST", "localhost")
-    MYSQL_PORT: str = os.getenv("MYSQL_PORT", "3306")
-    MYSQL_DB: Optional[str] = os.getenv("MYSQL_DB")
+    MYSQL_USER: Optional[str] = None
+    MYSQL_PASSWORD: Optional[str] = None
+    MYSQL_HOST: str = "localhost"
+    MYSQL_PORT: str = "3306"
+    MYSQL_DB: Optional[str] = None
     
-    # Function Calling / Tool Use
-    USE_FUNCTION_CALLING: bool = os.getenv("USE_FUNCTION_CALLING", "false").lower() == "true"
-    SEARCH_MODE: str = os.getenv("SEARCH_MODE", "rag")  # Options: 'rag', 'tools', 'hybrid'
-    MAX_ITERATIONS: int = int(os.getenv("MAX_ITERATIONS", "10"))  # Max tool calling iterations
+    # === Function Calling / Tool Use ===
+    USE_FUNCTION_CALLING: bool = False
+    SEARCH_MODE: str = "rag"  # Options: 'rag', 'tools', 'hybrid'
+    MAX_ITERATIONS: int = 10  # Max tool calling iterations
+    
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore"
+    }
+    
+    def get_provider_config(self, provider: str) -> dict:
+        """Return config dict for a specific LLM provider."""
+        configs = {
+            "openai": {
+                "model": self.OPENAI_MODEL,
+                "temperature": self.OPENAI_TEMPERATURE,
+                "max_tokens": self.OPENAI_MAX_TOKENS
+            },
+            "gemini": {
+                "model": self.GEMINI_MODEL,
+                "temperature": self.GEMINI_TEMPERATURE,
+                "max_tokens": self.GEMINI_MAX_TOKENS
+            },
+            "grok": {
+                "model": self.GROK_MODEL,
+                "temperature": self.GROK_TEMPERATURE,
+                "max_tokens": self.GROK_MAX_TOKENS
+            },
+        }
+        return configs.get(provider, configs["gemini"])
     
     @property
     def database_url(self) -> str:
-        """Get database URL based on DATABASE_TYPE environment variable."""
+        """Get database URL based on DATABASE_TYPE."""
         if self.DATABASE_TYPE == "sqlite":
             return self.SQLITE_DATABASE_URL
         elif self.DATABASE_TYPE == "postgresql":

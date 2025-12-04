@@ -1,5 +1,6 @@
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, field_validator, ValidationError
+from config import settings
 
 # --- Request Models ---
 
@@ -8,8 +9,8 @@ class ProfileRequest(BaseModel):
     company: str = ""
     additional_info: str = ""
     api_key: str
-    model_provider: str = "gemini"  # gemini, openai, or grok
-    search_provider: str = "ddg"  # ddg or serper
+    model_provider: str = settings.DEFAULT_MODEL_PROVIDER  # gemini, openai, or grok
+    search_provider: str = settings.DEFAULT_SEARCH_PROVIDER  # ddg or serper
     serper_api_key: Optional[str] = None
     bypass_cache: bool = False
     search_mode: Optional[str] = None  # rag, tools, or hybrid
@@ -49,8 +50,8 @@ class ProfileRequest(BaseModel):
 class DeepResearchRequest(BaseModel):
     topic: str
     api_key: str
-    model_provider: str = "gemini"  # gemini, openai, or grok
-    search_provider: str = "ddg"  # ddg or serper
+    model_provider: str = settings.DEFAULT_MODEL_PROVIDER  # gemini, openai, or grok
+    search_provider: str = settings.DEFAULT_SEARCH_PROVIDER  # ddg or serper
     serper_api_key: Optional[str] = None
     bypass_cache: bool = False
     search_mode: Optional[str] = None  # rag, tools, or hybrid
@@ -70,7 +71,7 @@ class NoteRequest(BaseModel):
     tone: str = "professional"
     context: str = ""
     api_key: str
-    model_provider: str = "gemini"  # gemini, openai, or grok
+    model_provider: str = settings.DEFAULT_MODEL_PROVIDER  # gemini, openai, or grok
     bypass_cache: bool = False
 
 class SecretRequest(BaseModel):

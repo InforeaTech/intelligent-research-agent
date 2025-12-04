@@ -89,6 +89,17 @@ secret_manager = SecretManager()
 def read_root():
     return {"status": "online", "message": "Intelligent Research Agent API is running."}
 
+@app.get("/api/config")
+def get_app_config():
+    """Return public configuration for frontend."""
+    from config import settings
+    return {
+        "default_model_provider": settings.DEFAULT_MODEL_PROVIDER,
+        "default_search_provider": settings.DEFAULT_SEARCH_PROVIDER,
+        "available_providers": ["gemini", "openai", "grok"],
+        "available_search_providers": ["ddg", "serper"]
+    }
+
 @app.post("/api/secrets/set", response_model=StatusResponse)
 def set_secret(request: SecretRequest):
     """Store an encrypted secret (API key)."""

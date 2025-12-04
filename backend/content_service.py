@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 from logger_config import get_logger
 from tool_definitions import get_tools_for_provider
 from tool_executor import ToolExecutor
+from config import settings
 
 logger = get_logger(__name__)
 
@@ -118,42 +119,45 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         start_time = time.time()
         try:
             if provider == "gemini":
-                logger.info("Calling Gemini API", extra={'extra_data': {'model': 'gemini-2.5-flash', 'prompt_length': len(prompt)}})
+                gemini_config = settings.get_provider_config("gemini")
+                logger.info("Calling Gemini API", extra={'extra_data': {'model': gemini_config['model'], 'prompt_length': len(prompt)}})
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel(gemini_config['model'])
                 response = model.generate_content(prompt)
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info("Profile generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
                 return response.text
             elif provider == "grok":
-                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-4-1-fast', 'prompt_length': len(prompt)}})
+                grok_config = settings.get_provider_config("grok")
+                logger.info("Calling Grok API", extra={'extra_data': {'model': grok_config['model'], 'prompt_length': len(prompt)}})
                 client = OpenAI(
                     api_key=api_key,
                     base_url="https://api.x.ai/v1",
                     http_client=httpx.Client()
                 )
                 response = client.chat.completions.create(
-                    model="grok-4-1-fast",
+                    model=grok_config['model'],
                     messages=[
                         {"role": "system", "content": "You are a helpful professional research assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.8
+                    temperature=grok_config['temperature']
                 )
                 duration_ms = (time.time() - start_time) * 1000
                 response_text = response.choices[0].message.content
                 logger.info("Profile generation completed", extra={'extra_data': {'provider': 'grok', 'duration_ms': round(duration_ms, 2), 'response_length': len(response_text)}})
                 return response_text
             else:
-                logger.info("Calling OpenAI API", extra={'extra_data': {'model': 'gpt-5-nano', 'prompt_length': len(prompt)}})
+                openai_config = settings.get_provider_config("openai")
+                logger.info("Calling OpenAI API", extra={'extra_data': {'model': openai_config['model'], 'prompt_length': len(prompt)}})
                 client = OpenAI(api_key=api_key, http_client=httpx.Client())
                 response = client.chat.completions.create(
-                    model="gpt-5-nano",
+                    model=openai_config['model'],
                     messages=[
                         {"role": "system", "content": "You are a helpful professional research assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=1
+                    temperature=openai_config['temperature']
                 )
                 duration_ms = (time.time() - start_time) * 1000
                 response_text = response.choices[0].message.content
@@ -191,42 +195,45 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         start_time = time.time()
         try:
             if provider == "gemini":
-                logger.info("Calling Gemini API", extra={'extra_data': {'model': 'gemini-2.5-flash', 'prompt_length': len(prompt)}})
+                gemini_config = settings.get_provider_config("gemini")
+                logger.info("Calling Gemini API", extra={'extra_data': {'model': gemini_config['model'], 'prompt_length': len(prompt)}})
                 genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
+                model = genai.GenerativeModel(gemini_config['model'])
                 response = model.generate_content(prompt)
                 duration_ms = (time.time() - start_time) * 1000
                 logger.info("Note generation completed", extra={'extra_data': {'provider': 'gemini', 'duration_ms': round(duration_ms, 2), 'response_length': len(response.text)}})
                 return response.text
             elif provider == "grok":
-                logger.info("Calling Grok API", extra={'extra_data': {'model': 'grok-4-1-fast', 'prompt_length': len(prompt)}})
+                grok_config = settings.get_provider_config("grok")
+                logger.info("Calling Grok API", extra={'extra_data': {'model': grok_config['model'], 'prompt_length': len(prompt)}})
                 client = OpenAI(
                     api_key=api_key,
                     base_url="https://api.x.ai/v1",
                     http_client=httpx.Client()
                 )
                 response = client.chat.completions.create(
-                    model="grok-4-1-fast",
+                    model=grok_config['model'],
                     messages=[
                         {"role": "system", "content": "You are an expert networking assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=0.8
+                    temperature=grok_config['temperature']
                 )
                 duration_ms = (time.time() - start_time) * 1000
                 response_text = response.choices[0].message.content
                 logger.info("Note generation completed", extra={'extra_data': {'provider': 'grok', 'duration_ms': round(duration_ms, 2), 'response_length': len(response_text)}})
                 return response_text
             else:
-                logger.info("Calling OpenAI API", extra={'extra_data': {'model': 'gpt-5-nano', 'prompt_length': len(prompt)}})
+                openai_config = settings.get_provider_config("openai")
+                logger.info("Calling OpenAI API", extra={'extra_data': {'model': openai_config['model'], 'prompt_length': len(prompt)}})
                 client = OpenAI(api_key=api_key, http_client=httpx.Client())
                 response = client.chat.completions.create(
-                    model="gpt-5-nano",
+                    model=openai_config['model'],
                     messages=[
                         {"role": "system", "content": "You are an expert networking assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=1
+                    temperature=openai_config['temperature']
                 )
                 duration_ms = (time.time() - start_time) * 1000
                 response_text = response.choices[0].message.content
@@ -240,8 +247,9 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
     def plan_research(self, topic: str, api_key: str) -> List[str]:
         """Generates search queries for deep research."""
         logger.info("Starting research planning", extra={'extra_data': {'topic': topic}})
+        gemini_config = settings.get_provider_config("gemini")
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel(gemini_config['model'])
         
         planning_prompt = f"""
         You are a senior research analyst. I need to research the following topic deeply:
@@ -274,8 +282,9 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
     def synthesize_report(self, topic: str, context_str: str, api_key: str) -> str:
         """Synthesizes a deep research report."""
         logger.info("Starting report synthesis", extra={'extra_data': {'topic': topic, 'context_length': len(context_str)}})
+        gemini_config = settings.get_provider_config("gemini")
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel(gemini_config['model'])
         
         report_prompt = f"""
         You are a senior research analyst. Write a comprehensive deep research report on "{topic}" based on the gathered information below.
@@ -293,7 +302,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         
         start_time = time.time()
         try:
-            logger.info("Calling Gemini API for report synthesis", extra={'extra_data': {'model': 'gemini-2.5-flash', 'prompt_length': len(report_prompt)}})
+            logger.info("Calling Gemini API for report synthesis", extra={'extra_data': {'model': gemini_config['model'], 'prompt_length': len(report_prompt)}})
             report_response = model.generate_content(report_prompt)
             duration_ms = (time.time() - start_time) * 1000
             logger.info("Report synthesis completed", extra={'extra_data': {'duration_ms': round(duration_ms, 2), 'report_length': len(report_response.text)}})
