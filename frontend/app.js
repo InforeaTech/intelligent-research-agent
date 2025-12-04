@@ -15,6 +15,7 @@ const charCount = document.getElementById('charCount');
 const apiKeyInput = document.getElementById('apiKey');
 const modelProviderSelect = document.getElementById('modelProvider');
 const searchProviderSelect = document.getElementById('searchProvider');
+const searchModeSelect = document.getElementById('searchMode');
 const serperKeyInput = document.getElementById('serperKey');
 
 // ==================== Authentication Functions ====================
@@ -135,6 +136,7 @@ async function handleResearch() {
     const additionalInfo = document.getElementById('additionalInfo').value.trim();
     const apiKey = apiKeyInput.value.trim();
     const modelProvider = modelProviderSelect.value;
+    const searchMode = searchModeSelect.value;
     const serperKey = serperKeyInput.value.trim();
     const bypassCache = document.getElementById('bypassCacheResearch').checked;
 
@@ -154,6 +156,7 @@ async function handleResearch() {
             api_key: apiKey,
             model_provider: modelProvider,
             search_provider: searchProviderSelect.value,
+            search_mode: searchMode,
             bypass_cache: bypassCache
         };
 

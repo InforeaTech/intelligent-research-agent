@@ -7,6 +7,7 @@ from content_service import ContentService
 from repositories import LogRepository
 from sqlalchemy.orm import Session
 from logger_config import get_logger, log_performance
+from config import settings
 
 logger = get_logger(__name__)
 
@@ -112,6 +113,74 @@ class ResearchAgent:
                 )
         
         return (response_text, from_cache, cached_note)
+
+    def generate_profile_with_mode(self, name: str, company: str = "", additional_info: str = "", 
+                                   api_key: str = "", provider: str = "openai", 
+                                   serper_api_key: str = None, bypass_cache: bool = False,
+                                   search_mode: str = None, db: Session = None) -> tuple:
+        """
+        Generate profile using specified search mode.
+        
+        Args:
+            name: Person's name
+            company: Company name
+            additional_info: Additional context
+            api_key: LLM API key
+            provider: LLM provider
+            serper_api_key: Optional Serper API key
+            bypass_cache: Skip cache lookup
+            search_mode: Override for search mode ('rag', 'tools', 'hybrid'). Uses config default if None.
+            db: Database session
+            
+        Returns:
+            Tuple of (profile_text, research_data, from_cache, cached_note)
+        """
+        # Determine search mode
+        mode = search_mode or settings.SEARCH_MODE
+        logger.info(f"Generating profile with mode: {mode}", 
+                   extra={'extra_data': {'name': name, 'mode': mode, 'provider': provider}})
+        
+        if mode == "tools":
+            # Function calling mode - LLM decides when to search
+            profile_text = self.content_service.generate_profile_with_tools(
+                name=name,
+                company=company,
+                additional_info=additional_info,
+                api_key=api_key,
+                provider=provider,
+                serper_api_key=serper_api_key
+            )
+            # Function calling doesn't use traditional cache, so no cached note
+            # Return minimal research data
+            research_data = {"mode": "tools", "query": f"{name} {company}"}
+            return (profile_text, research_data, False, None)
+        
+        elif mode == "hybrid":
+            # Hybrid mode - RAG + function calling
+            # First gather info via RAG
+            research_data = self.gather_info(name, company, additional_info, serper_api_key, db)
+            research_data["mode"] = "hybrid"
+            
+            # Then use function calling with initial context
+            # For now, pass research data in the additional_info
+            context = f"Initial research: {json.dumps(research_data)}\n\n{additional_info}"
+            profile_text = self.content_service.generate_profile_with_tools(
+                name=name,
+                company=company,
+                additional_info=context,
+                api_key=api_key,
+                provider=provider,
+                serper_api_key=serper_api_key
+            )
+            return (profile_text, research_data, False, None)
+        
+        else:  # Default to RAG mode
+            # Traditional RAG mode
+            research_data = self.gather_info(name, company, additional_info, serper_api_key, db)
+            research_data["mode"] = "rag"
+            profile_text, from_cache, cached_note = self.generate_profile(research_data, api_key, provider, bypass_cache, db)
+            return (profile_text, research_data, from_cache, cached_note)
+
 
     def generate_note(self, profile_text: str, length: int, tone: str, context: str, api_key: str, provider: str = "openai", bypass_cache: bool = False, db: Session = None) -> tuple:
         """Generates a LinkedIn connection note. Returns (note_text, from_cache)"""

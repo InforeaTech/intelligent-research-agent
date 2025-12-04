@@ -330,13 +330,20 @@ def research_profile(request: ProfileRequest, req: Request, db: Session = Depend
                 return cached_response
 
         # CACHE LEVEL 2 & 3: Proceed with gather_info and generate_profile (which have their own caching)
-        # 1. Gather Info (has search query cache)
-        logger.info("Gathering info", extra={'extra_data': {'name': request.name, 'search_provider': request.search_provider.upper()}})
-        research_data = agent.gather_info(request.name, request.company, request.additional_info, serper_key, db=db)
+        # CACHE LEVEL 2 & 3: Proceed with research generation
+        logger.info("Generating profile", extra={'extra_data': {'model_provider': request.model_provider, 'search_mode': request.search_mode}})
         
-        # 2. Generate Profile (has profile generation cache)
-        logger.info("Generating profile", extra={'extra_data': {'model_provider': request.model_provider}})
-        profile_text, from_cache, cached_note = agent.generate_profile(research_data, api_key, request.model_provider, bypass_cache=request.bypass_cache, db=db)
+        profile_text, research_data, from_cache, cached_note = agent.generate_profile_with_mode(
+            name=request.name,
+            company=request.company,
+            additional_info=request.additional_info,
+            api_key=api_key,
+            provider=request.model_provider,
+            serper_api_key=serper_key,
+            bypass_cache=request.bypass_cache,
+            search_mode=request.search_mode,
+            db=db
+        )
         
         # Prepare response
         response = {

@@ -28,6 +28,10 @@ class Settings:
     MYSQL_PORT: str = os.getenv("MYSQL_PORT", "3306")
     MYSQL_DB: Optional[str] = os.getenv("MYSQL_DB")
     
+    # Function Calling / Tool Use
+    USE_FUNCTION_CALLING: bool = os.getenv("USE_FUNCTION_CALLING", "false").lower() == "true"
+    SEARCH_MODE: str = os.getenv("SEARCH_MODE", "rag")  # Options: 'rag', 'tools', 'hybrid'
+    
     @property
     def database_url(self) -> str:
         """Get database URL based on DATABASE_TYPE environment variable."""

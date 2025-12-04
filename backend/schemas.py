@@ -12,6 +12,16 @@ class ProfileRequest(BaseModel):
     search_provider: str = "ddg"  # ddg or serper
     serper_api_key: Optional[str] = None
     bypass_cache: bool = False
+    search_mode: Optional[str] = None  # rag, tools, or hybrid
+
+    @field_validator('search_mode')
+    @classmethod
+    def validate_search_mode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.lower()
+            if v not in ["rag", "tools", "hybrid"]:
+                raise ValueError("search_mode must be 'rag', 'tools', or 'hybrid'")
+        return v
     
     @field_validator('name')
     @classmethod
