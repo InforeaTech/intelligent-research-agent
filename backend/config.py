@@ -31,6 +31,7 @@ class Settings:
     # Function Calling / Tool Use
     USE_FUNCTION_CALLING: bool = os.getenv("USE_FUNCTION_CALLING", "false").lower() == "true"
     SEARCH_MODE: str = os.getenv("SEARCH_MODE", "rag")  # Options: 'rag', 'tools', 'hybrid'
+    MAX_ITERATIONS: int = int(os.getenv("MAX_ITERATIONS", "10"))  # Max tool calling iterations
     
     @property
     def database_url(self) -> str:

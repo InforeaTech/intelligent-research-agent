@@ -306,7 +306,7 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
     def generate_profile_with_tools(self, name: str, company: str, additional_info: str, 
                    api_key: str, provider: str = "openai", 
                                    serper_api_key: Optional[str] = None,
-                                   max_iterations: int = 5) -> str:
+                                   max_iterations: Optional[int] = None) -> str:
         """
         Generate profile using LLM function calling.
         LLM autonomously decides when to search/scrape.
@@ -323,8 +323,13 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         Returns:
             Generated profile text
         """
+        # Use config default if not specified
+        if max_iterations is None:
+            from config import settings
+            max_iterations = settings.MAX_ITERATIONS
+        
         logger.info("Starting profile generation with tools", 
-                   extra={'extra_data': {'provider': provider, 'name': name}})
+                   extra={'extra_data': {'provider': provider, 'name': name, 'max_iterations': max_iterations}})
         
         if provider == "openai":
             return self._generate_profile_with_tools_openai(
@@ -669,3 +674,459 @@ Format the output as a detailed professional profile.
                         }},
                         exc_info=True)
             return f"Error generating profile with tools: {str(e)}"
+
+    def deep_research_with_tools(self, topic: str, api_key: str, provider: str = "openai",
+                                 serper_api_key: Optional[str] = None,
+                                 max_iterations: Optional[int] = None) -> str:
+        """
+        Generate deep research report using LLM function calling.
+        LLM autonomously decides what to search for and when to finalize.
+        
+        Args:
+            topic: Research topic
+            api_key: LLM API key
+            provider: LLM provider ('openai', 'gemini', 'grok')
+            serper_api_key: Optional Serper API key for searches
+            max_iterations: Maximum tool calling iterations
+            
+        Returns:
+            Generated research report
+        """
+        # Use config default if not specified
+        if max_iterations is None:
+            from config import settings
+            max_iterations = settings.MAX_ITERATIONS
+        
+        logger.info("Starting deep research with tools", 
+                   extra={'extra_data': {'provider': provider, 'topic': topic, 'max_iterations': max_iterations}})
+        
+        if provider == "openai":
+            return self._deep_research_with_tools_openai(
+                topic, api_key, serper_api_key, max_iterations
+            )
+        elif provider == "gemini":
+            return self._deep_research_with_tools_gemini(
+                topic, api_key, serper_api_key, max_iterations
+            )
+        elif provider == "grok":
+            return self._deep_research_with_tools_grok(
+                topic, api_key, serper_api_key, max_iterations
+            )
+        else:
+            logger.warning(f"Unknown provider {provider}")
+            return f"Unknown provider: {provider}"
+    
+    def _deep_research_with_tools_openai(self, topic: str, api_key: str,
+                                        serper_api_key: Optional[str],
+                                        max_iterations: int) -> str:
+        """OpenAI-specific deep research with function calling."""
+        start_time = time.time()
+        
+        try:
+            # Initialize client and tool executor
+            client = OpenAI(api_key=api_key, http_client=httpx.Client())
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tools = get_tools_for_provider("openai")
+            
+            # System prompt for deep research
+            system_message = """You are a senior research analyst conducting deep research. 
+Use the available tools (search_web, scrape_webpage) to gather comprehensive information.
+Your goal is to create a detailed, well-researched report.
+
+Strategy:
+1. Start with broad searches to understand the topic
+2. Identify key subtopics and areas to explore
+3. Scrape relevant pages for detailed information
+4. Continue searching until you have comprehensive coverage
+5. When you have enough information, synthesize your findings into a final report
+
+The final report should include:
+- Executive Summary
+- Detailed Analysis
+- Key Findings
+- Sources (URLs cited)
+
+Use Markdown formatting for the report."""
+            
+            user_prompt = f"""Conduct deep research on the following topic:
+
+Topic: {topic}
+
+Use the search_web and scrape_webpage tools to gather information.
+When you have sufficient information, provide a comprehensive research report."""
+            
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            iteration = 0
+            
+            # Function calling loop
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"Deep research iteration {iteration}/{max_iterations}",
+                           extra={'extra_data': {'topic': topic}})
+                
+                # Call LLM with tools
+                response = client.chat.completions.create(
+                    model="gpt-5-nano",
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=0.7  # Slightly lower for research
+                )
+                
+                assistant_message = response.choices[0].message
+                
+                # Check if LLM wants to use tools
+                if not assistant_message.tool_calls:
+                    # LLM returned final report
+                    final_content = assistant_message.content or ""
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.info("Deep research with tools completed",
+                               extra={'extra_data': {
+                                   'provider': 'openai',
+                                   'iterations': iteration,
+                                   'duration_ms': round(duration_ms, 2),
+                                   'report_length': len(final_content)
+                               }})
+                    return final_content
+                
+                # LLM wants to use tools
+                messages.append(assistant_message)
+                
+                # Execute each tool call
+                for tool_call in assistant_message.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    
+                    logger.info(f"LLM requested tool: {tool_name}",
+                               extra={'extra_data': {'args': tool_args}})
+                    
+                    # Execute tool
+                    result = tool_executor.execute_tool(tool_name, tool_args)
+                    
+                    # Format result for LLM
+                    result_content = tool_executor.format_tool_result_for_llm(tool_name, result)
+                    
+                    # Add tool result to conversation
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": result_content
+                    })
+            
+            # Max iterations reached
+            logger.warning(f"Max iterations ({max_iterations}) reached, requesting final report")
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Make one final call to get the report
+            final_response = client.chat.completions.create(
+                model="gpt-5-nano",
+                messages=messages + [{
+                    "role": "user", 
+                    "content": "Please synthesize all the information you've gathered into a comprehensive research report now."
+                }],
+                temperature=0.7
+            )
+            
+            final_content = final_response.choices[0].message.content or "Unable to generate report"
+            logger.info("Deep research completed (max iterations)",
+                       extra={'extra_data': {
+                           'provider': 'openai',
+                           'iterations': iteration,
+                           'duration_ms': round(duration_ms, 2)
+                       }})
+            return final_content
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("Deep research with tools failed",
+                        extra={'extra_data': {
+                            'provider': 'openai',
+                            'duration_ms': round(duration_ms, 2),
+                            'error': str(e)
+                        }},
+                        exc_info=True)
+            return f"Error conducting deep research with tools: {str(e)}"
+    
+    def _deep_research_with_tools_gemini(self, topic: str, api_key: str,
+                                         serper_api_key: Optional[str],
+                                         max_iterations: int) -> str:
+        """Gemini-specific deep research with function calling."""
+        start_time = time.time()
+        
+        try:
+            # Initialize Gemini and tool executor
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-3-pro-preview')
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tools = get_tools_for_provider("gemini")
+            
+            # System instruction for deep research
+            system_instruction = """You are a senior research analyst conducting deep research. 
+Use the available tools (search_web, scrape_webpage) to gather comprehensive information.
+Your goal is to create a detailed, well-researched report.
+
+Strategy:
+1. Start with broad searches to understand the topic
+2. Identify key subtopics and areas to explore
+3. Scrape relevant pages for detailed information
+4. Continue searching until you have comprehensive coverage
+5. When you have enough information, synthesize your findings into a final report
+
+The final report should include:
+- Executive Summary
+- Detailed Analysis
+- Key Findings
+- Sources (URLs cited)
+
+Use Markdown formatting for the report."""
+            
+            # Start chat session with tools
+            chat = model.start_chat(enable_automatic_function_calling=False)
+            
+            user_prompt = f"""Conduct deep research on the following topic:
+
+Topic: {topic}
+
+Use the search_web and scrape_webpage tools to gather information.
+When you have sufficient information, provide a comprehensive research report."""
+            
+            iteration = 0
+            
+            # Function calling loop
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"Deep research iteration {iteration}/{max_iterations}",
+                           extra={'extra_data': {'topic': topic}})
+                
+                # Send message with tools
+                if iteration == 1:
+                    response = chat.send_message(user_prompt, tools=tools)
+                else:
+                    response = chat.send_message("Continue with your research.", tools=tools)
+                
+                # Check if response has function calls
+                has_function_call = False
+                for part in response.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        has_function_call = True
+                        break
+                
+                if not has_function_call:
+                    # Gemini returned final report
+                    final_content = response.text
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.info("Deep research with tools completed",
+                               extra={'extra_data': {
+                                   'provider': 'gemini',
+                                   'iterations': iteration,
+                                   'duration_ms': round(duration_ms, 2),
+                                   'report_length': len(final_content)
+                               }})
+                    return final_content
+                
+                # Execute function calls
+                function_responses = []
+                for part in response.parts:
+                    if hasattr(part, 'function_call') and part.function_call:
+                        fn_call = part.function_call
+                        tool_name = fn_call.name
+                        tool_args = dict(fn_call.args)
+                        
+                        logger.info(f"LLM requested tool: {tool_name}",
+                                   extra={'extra_data': {'args': tool_args}})
+                        
+                        # Execute tool
+                        result = tool_executor.execute_tool(tool_name, tool_args)
+                        
+                        # Format for Gemini
+                        result_content = tool_executor.format_tool_result_for_llm(tool_name, result)
+                        
+                        # Add to responses
+                        function_responses.append(
+                            genai.protos.Part(
+                                function_response=genai.protos.FunctionResponse(
+                                    name=tool_name,
+                                    response={"result": result_content}
+                                )
+                            )
+                        )
+                
+                # Send function responses
+                if function_responses:
+                    chat.send_message(function_responses)
+            
+            # Max iterations reached
+            logger.warning(f"Max iterations ({max_iterations}) reached, requesting final report")
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Request final report
+            final_response = chat.send_message(
+                "Please synthesize all the information you've gathered into a comprehensive research report now."
+            )
+            
+            final_content = final_response.text
+            logger.info("Deep research completed (max iterations)",
+                       extra={'extra_data': {
+                           'provider': 'gemini',
+                           'iterations': iteration,
+                           'duration_ms': round(duration_ms, 2)
+                       }})
+            return final_content
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("Deep research with tools failed",
+                        extra={'extra_data': {
+                            'provider': 'gemini',
+                            'duration_ms': round(duration_ms, 2),
+                            'error': str(e)
+                        }},
+                        exc_info=True)
+            return f"Error conducting deep research with tools: {str(e)}"
+    
+    def _deep_research_with_tools_grok(self, topic: str, api_key: str,
+                                       serper_api_key: Optional[str],
+                                       max_iterations: int) -> str:
+        """Grok-specific deep research with function calling."""
+        start_time = time.time()
+        
+        try:
+            # Initialize Grok client (OpenAI-compatible)
+            client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.x.ai/v1",
+                http_client=httpx.Client()
+            )
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tools = get_tools_for_provider("openai")  # Grok uses OpenAI format
+            
+            # System prompt for deep research
+            system_message = """You are a senior research analyst conducting deep research. 
+Use the available tools (search_web, scrape_webpage) to gather comprehensive information.
+Your goal is to create a detailed, well-researched report.
+
+Strategy:
+1. Start with broad searches to understand the topic
+2. Identify key subtopics and areas to explore
+3. Scrape relevant pages for detailed information
+4. Continue searching until you have comprehensive coverage
+5. When you have enough information, synthesize your findings into a final report
+
+The final report should include:
+- Executive Summary
+- Detailed Analysis
+- Key Findings
+- Sources (URLs cited)
+
+Use Markdown formatting for the report."""
+            
+            user_prompt = f"""Conduct deep research on the following topic:
+
+Topic: {topic}
+
+Use the search_web and scrape_webpage tools to gather information.
+When you have sufficient information, provide a comprehensive research report."""
+            
+            messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            iteration = 0
+            
+            # Function calling loop
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"Deep research iteration {iteration}/{max_iterations}",
+                           extra={'extra_data': {'topic': topic}})
+                
+                # Call Grok with tools
+                response = client.chat.completions.create(
+                    model="grok-4-1-fast",
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=0.7
+                )
+                
+                assistant_message = response.choices[0].message
+                
+                # Check if Grok wants to use tools
+                if not assistant_message.tool_calls:
+                    # Grok returned final report
+                    final_content = assistant_message.content or ""
+                    duration_ms = (time.time() - start_time) * 1000
+                    logger.info("Deep research with tools completed",
+                               extra={'extra_data': {
+                                   'provider': 'grok',
+                                   'iterations': iteration,
+                                   'duration_ms': round(duration_ms, 2),
+                                   'report_length': len(final_content)
+                               }})
+                    return final_content
+                
+                # Grok wants to use tools
+                messages.append(assistant_message)
+                
+                # Execute each tool call
+                for tool_call in assistant_message.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    
+                    logger.info(f"LLM requested tool: {tool_name}",
+                               extra={'extra_data': {'args': tool_args}})
+                    
+                    # Execute tool
+                    result = tool_executor.execute_tool(tool_name, tool_args)
+                    
+                    # Format result for LLM
+                    result_content = tool_executor.format_tool_result_for_llm(tool_name, result)
+                    
+                    # Add tool result to conversation
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_name,
+                        "content": result_content
+                    })
+            
+            # Max iterations reached
+            logger.warning(f"Max iterations ({max_iterations}) reached, requesting final report")
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Make one final call to get the report
+            final_response = client.chat.completions.create(
+                model="grok-4-1-fast",
+                messages=messages + [{
+                    "role": "user", 
+                    "content": "Please synthesize all the information you've gathered into a comprehensive research report now."
+                }],
+                temperature=0.7
+            )
+            
+            final_content = final_response.choices[0].message.content or "Unable to generate report"
+            logger.info("Deep research completed (max iterations)",
+                       extra={'extra_data': {
+                           'provider': 'grok',
+                           'iterations': iteration,
+                           'duration_ms': round(duration_ms, 2)
+                       }})
+            return final_content
+            
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("Deep research with tools failed",
+                        extra={'extra_data': {
+                            'provider': 'grok',
+                            'duration_ms': round(duration_ms, 2),
+                            'error': str(e)
+                        }},
+                        exc_info=True)
+            return f"Error conducting deep research with tools: {str(e)}"
+
+
