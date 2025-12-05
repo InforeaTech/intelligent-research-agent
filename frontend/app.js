@@ -114,6 +114,7 @@ function handle401(response) {
 
 // State
 let currentProfileText = "";
+let currentProfileId = null;  // Track the current profile ID for note linkage
 
 // Event Listeners
 researchBtn.addEventListener('click', handleResearch);
@@ -192,6 +193,7 @@ async function handleResearch() {
 
         const data = await response.json();
         currentProfileText = data.profile;
+        currentProfileId = data.id;  // Store profile ID for note generation
 
         // Display cache indicator for profile
         const profileHeader = document.querySelector('.profile-section .card-header h2');
@@ -291,6 +293,7 @@ async function handleGenerateNote() {
             credentials: 'include', // Include auth cookies
             body: JSON.stringify({
                 profile_text: currentProfileText,
+                profile_id: currentProfileId,  // Link note to current profile
                 length,
                 tone,
                 context,

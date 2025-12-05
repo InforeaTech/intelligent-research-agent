@@ -73,6 +73,7 @@ class NoteRequest(BaseModel):
     api_key: str
     model_provider: str = settings.DEFAULT_MODEL_PROVIDER  # gemini, openai, or grok
     bypass_cache: bool = False
+    profile_id: Optional[int] = None
 
 class SecretRequest(BaseModel):
     key: str
@@ -86,6 +87,7 @@ class ProfileResponse(BaseModel):
     from_cache: bool = False
     cached_note: Optional[str] = None
     cached_note_from_cache: bool = False
+    id: Optional[int] = None  # Profile ID for linking to history
 
 class NoteResponse(BaseModel):
     note: str
@@ -119,4 +121,35 @@ class AuthCallbackResponse(BaseModel):
     success: bool
     user: Optional[User] = None
     message: str = ""
+
+# --- History Models ---
+
+from datetime import datetime
+
+class NoteSchema(BaseModel):
+    id: int
+    profile_id: int
+    note_text: str
+    tone: str
+    length: int
+    context: Optional[str] = None
+    timestamp: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ProfileSchema(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    company: Optional[str] = None
+    additional_info: Optional[str] = None
+    profile_text: str
+    search_provider: str
+    model_provider: str
+    timestamp: datetime
+    
+    class Config:
+        from_attributes = True
+
 

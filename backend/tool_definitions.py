@@ -65,6 +65,28 @@ def get_openai_tools() -> List[Dict[str, Any]]:
                     "required": ["url"]
                 }
             }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_user_research_history",
+                "description": "Search and retrieve the user's past research profiles and notes. Use this to find information the user has already researched.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Optional search query to filter history (e.g., person name, company, topic)."
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of history items to return (default: 5)",
+                            "default": 5
+                        }
+                    },
+                    "required": []
+                }
+            }
         }
     ]
 
@@ -113,6 +135,24 @@ def get_gemini_tools() -> List[Dict[str, Any]]:
                             }
                         },
                         "required": ["url"]
+                    }
+                },
+                {
+                    "name": "get_user_research_history",
+                    "description": "Search and retrieve the user's past research profiles and notes. Use this to find information the user has already researched.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Optional search query to filter history (e.g., person name, company, topic)."
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of history items to return (default: 5)"
+                            }
+                        },
+                        "required": []
                     }
                 }
             ]
@@ -164,7 +204,7 @@ def get_tool_names() -> List[str]:
     Returns:
         List of tool function names
     """
-    return ["search_web", "scrape_webpage"]
+    return ["search_web", "scrape_webpage", "get_user_research_history"]
 
 
 def get_tool_description(tool_name: str) -> str:
@@ -182,7 +222,8 @@ def get_tool_description(tool_name: str) -> str:
     """
     descriptions = {
         "search_web": "Perform web search using DuckDuckGo or Serper",
-        "scrape_webpage": "Extract main content from a webpage URL"
+        "scrape_webpage": "Extract main content from a webpage URL",
+        "get_user_research_history": "Retrieve past research profiles and notes"
     }
     
     if tool_name not in descriptions:

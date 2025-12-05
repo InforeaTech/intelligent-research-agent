@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, List
 import fastapi
 from fastapi import FastAPI, HTTPException, Body, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +14,8 @@ from schemas import (
     DeepResearchRequest, DeepResearchResponse,
     SecretRequest, SecretResponse,
     StatusResponse,
-    User, LoginResponse, AuthCallbackResponse
+    User, LoginResponse, AuthCallbackResponse,
+    ProfileSchema, NoteSchema
 )
 from secrets_manager import SecretManager
 from logger_config import get_logger, set_request_id, log_performance
@@ -34,7 +35,7 @@ from auth import (
 )
 
 from models import get_db, init_db, SessionLocal
-from repositories import UserRepository, LogRepository
+from repositories import UserRepository, LogRepository, ProfileRepository, NoteRepository
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
@@ -382,6 +383,24 @@ def research_profile(request: ProfileRequest, req: Request, db: Session = Depend
             )
             logger.info("Cached complete result", extra={'extra_data': {'name': request.name}})
         
+        # Save to Profile History (Persistent Storage)
+        try:
+            profile_repo = ProfileRepository(db)
+            saved_profile = profile_repo.create(
+                user_id=user_id,
+                name=request.name,
+                company=request.company,
+                additional_info=request.additional_info,
+                profile_text=profile_text,
+                search_provider=request.search_provider,
+                model_provider=request.model_provider
+            )
+            response["id"] = saved_profile.id
+            logger.info("Saved profile to history", extra={'extra_data': {'profile_id': saved_profile.id}})
+        except Exception as e:
+            logger.error("Failed to save profile to history", extra={'extra_data': {'error': str(e)}})
+            # Don't fail the request if saving history fails, just log it
+        
         return response
     
     except ValidationError as e:
@@ -412,6 +431,25 @@ def generate_note(request: NoteRequest, req: Request, db: Session = Depends(get_
         db=db
     )
     
+    # Save to Note History (Persistent Storage) - only if linked to a profile
+    user_id = get_current_user_id(req)
+    if user_id and request.profile_id:  # Only save if profile_id exists
+        try:
+            note_repo = NoteRepository(db)
+            saved_note = note_repo.create(
+                user_id=user_id,
+                profile_id=request.profile_id,
+                note_text=note,
+                tone=request.tone,
+                length=request.length,
+                context=request.context,
+                model_provider=request.model_provider
+            )
+            logger.info("Saved note to history", extra={'extra_data': {'note_id': saved_note.id}})
+        except Exception as e:
+            logger.error("Failed to save note to history", extra={'extra_data': {'error': str(e)}})
+            # Don't fail the request if saving history fails
+            
     return {
         "note": note,
         "from_cache": from_cache
@@ -464,6 +502,184 @@ def deep_research(request: DeepResearchRequest, req: Request, db: Session = Depe
     except Exception as e:
         logger.error("Deep research failed", extra={'extra_data': {'error': str(e)}}, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== History Endpoints ====================
+
+@app.get("/api/profiles")
+def get_user_profiles(
+    skip: int = 0,
+    limit: int = 20,
+    sort: str = "recent",
+    req: Request = None,
+    db: Session = Depends(get_db_session)
+):
+    """
+    Get paginated list of user's profiles.
+    
+    Args:
+        skip: Number of records to skip for pagination
+        limit: Maximum number of records to return
+        sort: Sorting method ('recent', 'name', 'company')
+        
+    Returns:
+        Paginated list of profiles with total count
+    """
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    profile_repo = ProfileRepository(db)
+    profiles = profile_repo.get_by_user(user_id, skip, limit, sort)
+    total = profile_repo.count_by_user(user_id)
+    
+    logger.info("Retrieved user profiles", extra={'extra_data': {
+        'user_id': user_id, 
+        'count': len(profiles),
+        'total': total
+    }})
+    
+    return {"profiles": profiles, "total": total, "skip": skip, "limit": limit}
+
+@app.get("/api/profiles/search")
+def search_profiles(
+    q: str,
+    skip: int = 0,
+    limit: int = 20,
+    req: Request = None,
+    db: Session = Depends(get_db_session)
+):
+    """
+    Search user's profiles by keywords.
+    
+    Performs case-insensitive search across:
+    - Profile name
+    - Company name
+    - Profile content (full-text)
+    
+    Args:
+        q: Search query (minimum 2 characters)
+        skip: Pagination offset
+        limit: Max results per page
+        
+    Returns:
+        List of matching profiles with search metadata
+    """
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    if not q or len(q.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Search query must be at least 2 characters")
+    
+    profile_repo = ProfileRepository(db)
+    results = profile_repo.search(user_id, q.strip(), skip, limit)
+    
+    logger.info("Search profiles", extra={'extra_data': {
+        'user_id': user_id,
+        'query': q,
+        'results': len(results)
+    }})
+    
+    return {
+        "query": q,
+        "results": results,
+        "count": len(results),
+        "skip": skip,
+        "limit": limit
+    }
+
+@app.get("/api/profiles/{profile_id}")
+def get_profile(
+    profile_id: int,
+    req: Request,
+    db: Session = Depends(get_db_session)
+):
+    """
+    Get single profile with all associated notes.
+    
+    Args:
+        profile_id: Profile ID to retrieve
+        
+    Returns:
+        Profile object with notes eagerly loaded
+    """
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    profile_repo = ProfileRepository(db)
+    profile = profile_repo.get_with_notes(profile_id, user_id)
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    logger.info("Retrieved profile", extra={'extra_data': {
+        'profile_id': profile_id,
+        'user_id': user_id
+    }})
+    
+    return profile
+
+@app.delete("/api/profiles/{profile_id}")
+def delete_profile(
+    profile_id: int,
+    req: Request,
+    db: Session = Depends(get_db_session)
+):
+    """
+    Delete a profile and its associated notes (cascade).
+    
+    Args:
+        profile_id: Profile ID to delete
+        
+    Returns:
+        Success message
+    """
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    profile_repo = ProfileRepository(db)
+    deleted = profile_repo.delete_by_user(profile_id, user_id)
+    
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Profile not found or unauthorized")
+    
+    logger.info("Profile deleted", extra={'extra_data': {
+        'profile_id': profile_id,
+        'user_id': user_id
+    }})
+    
+    return {"status": "success", "message": "Profile deleted"}
+
+@app.get("/api/profiles/recent/{limit}")
+def get_recent_profiles(
+    limit: int = 5,
+    req: Request = None,
+    db: Session = Depends(get_db_session)
+):
+    """
+    Get recent profiles for dashboard widgets.
+    
+    Args:
+        limit: Maximum number of recent profiles to return
+        
+    Returns:
+        List of most recent profiles
+    """
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    profile_repo = ProfileRepository(db)
+    profiles = profile_repo.get_recent_by_user(user_id, limit)
+    
+    logger.info("Retrieved recent profiles", extra={'extra_data': {
+        'user_id': user_id,
+        'count': len(profiles)
+    }})
+    
+    return {"profiles": profiles}
 
 # Mount static files (frontend)
 # This must be after API routes to avoid shadowing

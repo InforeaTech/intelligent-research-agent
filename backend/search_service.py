@@ -41,7 +41,7 @@ class SearchService:
         """Performs a web search using DuckDuckGo."""
         logger.info("Searching DDG", extra={'extra_data': {'query': query, 'max_results': max_results}})
         try:
-            results = list(self.ddgs.text(query, max_results=max_results))
+            results = list(self.ddgs.text(query, max_results=int(max_results)))
             return results
         except Exception as e:
             logger.error("DDG search failed", extra={'extra_data': {'error': str(e)}}, exc_info=True)

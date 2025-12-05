@@ -4,6 +4,7 @@ import google.generativeai as genai
 from openai import OpenAI
 import httpx
 from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
 from logger_config import get_logger
 from tool_definitions import get_tools_for_provider
 from tool_executor import ToolExecutor
@@ -315,7 +316,8 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
     def generate_profile_with_tools(self, name: str, company: str, additional_info: str, 
                    api_key: str, provider: str = "openai", 
                                    serper_api_key: Optional[str] = None,
-                                   max_iterations: Optional[int] = None) -> str:
+                                   max_iterations: Optional[int] = None,
+                                   db: Optional[Session] = None) -> str:
         """
         Generate profile using LLM function calling.
         LLM autonomously decides when to search/scrape.
@@ -342,15 +344,15 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
         
         if provider == "openai":
             return self._generate_profile_with_tools_openai(
-                name, company, additional_info, api_key, serper_api_key, max_iterations
+                name, company, additional_info, api_key, serper_api_key, max_iterations, db
             )
         elif provider == "gemini":
             return self._generate_profile_with_tools_gemini(
-                name, company, additional_info, api_key, serper_api_key, max_iterations
+                name, company, additional_info, api_key, serper_api_key, max_iterations, db
             )
         elif provider == "grok":
             return self._generate_profile_with_tools_grok(
-                name, company, additional_info, api_key, serper_api_key, max_iterations
+                name, company, additional_info, api_key, serper_api_key, max_iterations, db
             )
         else:
             logger.warning(f"Function calling not supported for {provider}, falling back to RAG")
@@ -361,14 +363,15 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
     def _generate_profile_with_tools_openai(self, name: str, company: str, 
                                            additional_info: str, api_key: str,
                                            serper_api_key: Optional[str], 
-                                           max_iterations: int) -> str:
+                                           max_iterations: int,
+                                           db: Optional[Session] = None) -> str:
         """OpenAI-specific function calling implementation."""
         start_time = time.time()
         
         try:
             # Initialize client and tool executor
             client = OpenAI(api_key=api_key, http_client=httpx.Client())
-            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key, db=db)
             tools = get_tools_for_provider("openai")
             
             # Initial prompt
@@ -380,8 +383,9 @@ Name: {name}
 Company: {company}
 {f"Additional Info: {additional_info}" if additional_info else ""}
 
-Use the search_web and scrape_webpage tools to gather information.
-Format the output as a detailed professional profile.
+Use the get_user_research_history tool FIRST to check for existing information.
+Then use search_web and scrape_webpage tools to gather new or updated information.
+Format the output as a detailed professional profile using Markdown with clear headings and bullet points. Do not use large paragraphs.
 """
             
             messages = [
@@ -480,13 +484,14 @@ Format the output as a detailed professional profile.
     def _generate_profile_with_tools_gemini(self, name: str, company: str, 
                                            additional_info: str, api_key: str,
                                            serper_api_key: Optional[str], 
-                                           max_iterations: int) -> str:
+                                           max_iterations: int,
+                                           db: Optional[Session] = None) -> str:
         """Gemini-specific function calling implementation."""
         start_time = time.time()
         
         try:
             genai.configure(api_key=api_key)
-            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key, db=db)
             
             # Get tools in Gemini format
             tools = get_tools_for_provider("gemini")
@@ -510,8 +515,9 @@ Name: {name}
 Company: {company}
 {f"Additional Info: {additional_info}" if additional_info else ""}
 
-Use the search_web and scrape_webpage tools to gather information.
-Format the output as a detailed professional profile.
+Use the get_user_research_history tool FIRST to check for existing information.
+Then use search_web and scrape_webpage tools to gather new or updated information.
+Format the output as a detailed professional profile using Markdown with clear headings and bullet points. Do not use large paragraphs.
 """
             
             iteration = 0
@@ -586,7 +592,8 @@ Format the output as a detailed professional profile.
     def _generate_profile_with_tools_grok(self, name: str, company: str, 
                                          additional_info: str, api_key: str,
                                          serper_api_key: Optional[str], 
-                                         max_iterations: int) -> str:
+                                         max_iterations: int,
+                                         db: Optional[Session] = None) -> str:
         """Grok-specific function calling implementation (OpenAI compatible)."""
         start_time = time.time()
         
@@ -597,7 +604,7 @@ Format the output as a detailed professional profile.
                 base_url="https://api.x.ai/v1",
                 http_client=httpx.Client()
             )
-            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key, db=db)
             tools = get_tools_for_provider("grok")
             
             system_message = "You are an expert research assistant. Use the available tools to search for information and create a comprehensive professional profile."
@@ -608,8 +615,9 @@ Name: {name}
 Company: {company}
 {f"Additional Info: {additional_info}" if additional_info else ""}
 
-Use the search_web and scrape_webpage tools to gather information.
-Format the output as a detailed professional profile.
+Use the get_user_research_history tool FIRST to check for existing information.
+Then use search_web and scrape_webpage tools to gather new or updated information.
+Format the output as a detailed professional profile using Markdown with clear headings and bullet points. Do not use large paragraphs.
 """
             
             messages = [
@@ -686,7 +694,8 @@ Format the output as a detailed professional profile.
 
     def deep_research_with_tools(self, topic: str, api_key: str, provider: str = "openai",
                                  serper_api_key: Optional[str] = None,
-                                 max_iterations: Optional[int] = None) -> str:
+                                 max_iterations: Optional[int] = None,
+                                 db: Optional[Session] = None) -> str:
         """
         Generate deep research report using LLM function calling.
         LLM autonomously decides what to search for and when to finalize.
@@ -711,15 +720,15 @@ Format the output as a detailed professional profile.
         
         if provider == "openai":
             return self._deep_research_with_tools_openai(
-                topic, api_key, serper_api_key, max_iterations
+                topic, api_key, serper_api_key, max_iterations, db
             )
         elif provider == "gemini":
             return self._deep_research_with_tools_gemini(
-                topic, api_key, serper_api_key, max_iterations
+                topic, api_key, serper_api_key, max_iterations, db
             )
         elif provider == "grok":
             return self._deep_research_with_tools_grok(
-                topic, api_key, serper_api_key, max_iterations
+                topic, api_key, serper_api_key, max_iterations, db
             )
         else:
             logger.warning(f"Unknown provider {provider}")
@@ -727,14 +736,15 @@ Format the output as a detailed professional profile.
     
     def _deep_research_with_tools_openai(self, topic: str, api_key: str,
                                         serper_api_key: Optional[str],
-                                        max_iterations: int) -> str:
+                                        max_iterations: int,
+                                        db: Optional[Session] = None) -> str:
         """OpenAI-specific deep research with function calling."""
         start_time = time.time()
         
         try:
             # Initialize client and tool executor
             client = OpenAI(api_key=api_key, http_client=httpx.Client())
-            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key, db=db)
             tools = get_tools_for_provider("openai")
             
             # System prompt for deep research
@@ -761,7 +771,8 @@ Use Markdown formatting for the report."""
 
 Topic: {topic}
 
-Use the search_web and scrape_webpage tools to gather information.
+Use the get_user_research_history tool FIRST to check for existing information.
+Then use search_web and scrape_webpage tools to gather new or updated information.
 When you have sufficient information, provide a comprehensive research report."""
             
             messages = [
@@ -863,7 +874,8 @@ When you have sufficient information, provide a comprehensive research report.""
     
     def _deep_research_with_tools_gemini(self, topic: str, api_key: str,
                                          serper_api_key: Optional[str],
-                                         max_iterations: int) -> str:
+                                         max_iterations: int,
+                                         db: Optional[Session] = None) -> str:
         """Gemini-specific deep research with function calling."""
         start_time = time.time()
         
@@ -871,7 +883,7 @@ When you have sufficient information, provide a comprehensive research report.""
             # Initialize Gemini and tool executor
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-2.5-flash')
-            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key, db=db)
             tools = get_tools_for_provider("gemini")
             
             # System instruction for deep research
@@ -901,7 +913,8 @@ Use Markdown formatting for the report."""
 
 Topic: {topic}
 
-Use the search_web and scrape_webpage tools to gather information.
+Use the get_user_research_history tool FIRST to check for existing information.
+Then use search_web and scrape_webpage tools to gather new or updated information.
 When you have sufficient information, provide a comprehensive research report."""
             
             iteration = 0
@@ -1000,7 +1013,8 @@ When you have sufficient information, provide a comprehensive research report.""
     
     def _deep_research_with_tools_grok(self, topic: str, api_key: str,
                                        serper_api_key: Optional[str],
-                                       max_iterations: int) -> str:
+                                       max_iterations: int,
+                                       db: Optional[Session] = None) -> str:
         """Grok-specific deep research with function calling."""
         start_time = time.time()
         
@@ -1011,7 +1025,7 @@ When you have sufficient information, provide a comprehensive research report.""
                 base_url="https://api.x.ai/v1",
                 http_client=httpx.Client()
             )
-            tool_executor = ToolExecutor(serper_api_key=serper_api_key)
+            tool_executor = ToolExecutor(serper_api_key=serper_api_key, db=db)
             tools = get_tools_for_provider("openai")  # Grok uses OpenAI format
             
             # System prompt for deep research
@@ -1038,7 +1052,8 @@ Use Markdown formatting for the report."""
 
 Topic: {topic}
 
-Use the search_web and scrape_webpage tools to gather information.
+Use the get_user_research_history tool FIRST to check for existing information.
+Then use search_web and scrape_webpage tools to gather new or updated information.
 When you have sufficient information, provide a comprehensive research report."""
             
             messages = [

@@ -15,8 +15,68 @@
 <body>
     <div class="background-gradient"></div>
 
-    <div class="container">
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- History Sidebar -->
+    <aside id="historySidebar" class="history-sidebar collapsed" role="complementary" aria-label="Research History">
+        <div class="sidebar-header">
+            <h3><i class="fa-solid fa-clock-rotate-left"></i> History</h3>
+            <button id="closeSidebar" class="btn-icon" title="Close sidebar" aria-label="Close sidebar">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Search & Sort Controls -->
+        <div class="sidebar-controls">
+            <input type="search" id="historySearch" placeholder="🔍 Search history..." class="search-input"
+                aria-label="Search history">
+            <select id="historySort" class="sort-select" aria-label="Sort order">
+                <option value="recent">Recent First</option>
+                <option value="name">Name (A-Z)</option>
+                <option value="company">Company (A-Z)</option>
+            </select>
+        </div>
+
+        <div class="sidebar-content">
+            <!-- Skeleton Loaders -->
+            <div id="historySkeleton" class="skeleton-container hidden">
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+            </div>
+
+            <div id="historyList" class="history-list" role="list" aria-live="polite">
+                <!-- History items will be injected here -->
+            </div>
+
+            <div id="historyEmpty" class="empty-state hidden">
+                <i class="fa-regular fa-folder-open"></i>
+                <p>No research history yet</p>
+                <small>Generate a profile to see it here!</small>
+            </div>
+
+            <div id="historyLoading" class="loading-state hidden">
+                <div class="spinner"></div>
+                <p>Loading history...</p>
+            </div>
+
+            <!-- Load More Button -->
+            <button id="loadMoreBtn" class="load-more-btn hidden">
+                <span class="load-more-text">Load More</span>
+                <span class="load-more-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i></span>
+            </button>
+        </div>
+    </aside>
+
+    <div class="container" id="mainContent">
         <header>
+            <!-- Sidebar Toggle Button -->
+            <button id="toggleSidebar" class="sidebar-toggle" title="Toggle history sidebar"
+                aria-label="Toggle history sidebar">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+
             <div class="logo">
                 <i class="fa-solid fa-robot"></i>
                 <h1>Research<span>Agent</span></h1>
@@ -158,6 +218,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="app.js"></script>
+    <script src="history.js"></script>
 </body>
 
 </html>

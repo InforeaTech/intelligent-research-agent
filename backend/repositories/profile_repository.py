@@ -3,7 +3,7 @@ Profile repository for research profile management.
 """
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, desc, asc
+from sqlalchemy import or_, desc, asc, func
 import sys
 import os
 
@@ -91,7 +91,7 @@ class ProfileRepository(BaseRepository[Profile]):
                 Profile.company.ilike(search_pattern),
                 Profile.profile_text.ilike(search_pattern)
             )
-        ).offset(skip).limit(limit).all()
+        ).order_by(desc(func.length(Profile.profile_text))).offset(skip).limit(limit).all()
 
     def get_with_notes(self, profile_id: int, user_id: int) -> Optional[Profile]:
         """

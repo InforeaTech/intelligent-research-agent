@@ -148,7 +148,8 @@ class ResearchAgent:
                 additional_info=additional_info,
                 api_key=api_key,
                 provider=provider,
-                serper_api_key=serper_api_key
+                serper_api_key=serper_api_key,
+                db=db
             )
             # Function calling doesn't use traditional cache, so no cached note
             # Return minimal research data
@@ -170,7 +171,8 @@ class ResearchAgent:
                 additional_info=context,
                 api_key=api_key,
                 provider=provider,
-                serper_api_key=serper_api_key
+                serper_api_key=serper_api_key,
+                db=db
             )
             return (profile_text, research_data, False, None)
         
@@ -356,7 +358,8 @@ class ResearchAgent:
                 topic=topic,
                 api_key=api_key,
                 provider=provider,
-                serper_api_key=serper_api_key
+                serper_api_key=serper_api_key,
+                db=db
             )
             
             # Log the research (no cache for tools mode currently)
@@ -401,7 +404,8 @@ Please review the above research and use tools to:
                 topic=enhanced_topic,
                 api_key=api_key,
                 provider=provider,
-                serper_api_key=serper_api_key
+                serper_api_key=serper_api_key,
+                db=db
             )
             
             # Log hybrid research
