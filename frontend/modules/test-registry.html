@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase 2 Components Test</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../styles/variables.css">
+    <link rel="stylesheet" href="../styles/components.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .test-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+        }
+
+        .test-section {
+            background: var(--card-bg);
+            border-radius: var(--card-radius);
+            padding: var(--card-padding);
+            margin-bottom: 2rem;
+        }
+
+        .test-section h2 {
+            margin-bottom: 1rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .test-section h2 .status {
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 8px;
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        #outputContainer {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="background-gradient"></div>
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div class="test-container">
+        <h1><i class="fa-solid fa-puzzle-piece"></i> Phase 2: Components Test</h1>
+
+        <!-- Test 1: Research Cards -->
+        <div class="test-section">
+            <h2>1. Research Cards <span class="status" id="cardStatus">Testing...</span></h2>
+            <div id="categoryGrid"></div>
+        </div>
+
+        <!-- Test 2: Output Panel -->
+        <div class="test-section">
+            <h2>2. Output Panel <span class="status" id="panelStatus">Testing...</span></h2>
+            <div id="outputContainer"></div>
+        </div>
+
+        <!-- Test 3: Toast Notifications -->
+        <div class="test-section">
+            <h2>3. Toast Notifications <span class="status" id="toastStatus">Testing...</span></h2>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <button class="btn-primary" onclick="Toast.success('Success message!')">Success Toast</button>
+                <button class="btn-secondary" onclick="Toast.error('Error message!')">Error Toast</button>
+                <button class="btn-icon" style="background: var(--color-category-competitive);"
+                    onclick="Toast.warning('Warning message!')">
+                    <i class="fa-solid fa-bell"></i> Warning
+                </button>
+                <button class="btn-icon" style="background: var(--primary);" onclick="Toast.info('Info message!')">
+                    <i class="fa-solid fa-info"></i> Info
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="module-registry.js"></script>
+    <script src="../components/research-card.js"></script>
+    <script src="../components/output-panel.js"></script>
+    <script src="../components/toast.js"></script>
+
+    <script>
+        // Test 1: Research Cards
+        const testModules = [
+            {
+                id: 'person-research',
+                name: 'Person Research',
+                icon: 'fa-solid fa-user-tie',
+                description: 'Generate professional profiles and connection notes',
+                color: 'var(--color-category-person)'
+            },
+            {
+                id: 'company-research',
+                name: 'Company Analysis',
+                icon: 'fa-solid fa-building',
+                description: 'Analyze companies, competitors, and market position',
+                color: 'var(--color-category-company)'
+            },
+            {
+                id: 'market-research',
+                name: 'Market Research',
+                icon: 'fa-solid fa-chart-line',
+                description: 'Industry trends and market analysis',
+                color: 'var(--color-category-market)',
+                comingSoon: true
+            }
+        ];
+
+        try {
+            const grid = document.getElementById('categoryGrid');
+            ResearchCard.renderAll(grid, testModules, (module) => {
+                Toast.info(`Selected: ${module.name}`);
+            });
+            ResearchCard.initAnimations(grid);
+            document.getElementById('cardStatus').textContent = '✓ Passed';
+        } catch (e) {
+            document.getElementById('cardStatus').textContent = '✗ Failed: ' + e.message;
+            document.getElementById('cardStatus').style.background = 'rgba(239, 68, 68, 0.2)';
+            document.getElementById('cardStatus').style.color = '#ef4444';
+        }
+
+        // Test 2: Output Panel
+        try {
+            const outputPanel = new OutputPanel('outputContainer');
+            outputPanel
+                .addTab('profile', 'Profile', 'fa-solid fa-user')
+                .addTab('notes', 'Notes', 'fa-solid fa-sticky-note')
+                .addTab('raw', 'Raw Data', 'fa-solid fa-code')
+                .setContent('profile', `# John Doe
+## Professional Summary
+Senior Software Engineer with 10+ years of experience.
+
+## Skills
+- JavaScript, Python, Go
+- Cloud Architecture
+- Team Leadership
+
+## Contact
+- Email: john@example.com
+- LinkedIn: /in/johndoe
+`, 'markdown')
+                .setContent('notes', 'Sample connection note would appear here...', 'text')
+                .setContent('raw', '{"name": "John Doe", "role": "Engineer"}', 'text')
+                .render();
+
+            document.getElementById('panelStatus').textContent = '✓ Passed';
+        } catch (e) {
+            document.getElementById('panelStatus').textContent = '✗ Failed: ' + e.message;
+            document.getElementById('panelStatus').style.background = 'rgba(239, 68, 68, 0.2)';
+            document.getElementById('panelStatus').style.color = '#ef4444';
+        }
+
+        // Test 3: Toast
+        try {
+            Toast.init();
+            document.getElementById('toastStatus').textContent = '✓ Ready (click buttons)';
+        } catch (e) {
+            document.getElementById('toastStatus').textContent = '✗ Failed: ' + e.message;
+        }
+
+        // Show welcome toast
+        setTimeout(() => {
+            Toast.success('Phase 2 Components loaded successfully!');
+        }, 500);
+    </script>
+</body>
+
+</html>

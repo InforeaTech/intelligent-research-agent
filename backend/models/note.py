@@ -22,7 +22,7 @@ class Note(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     note_text = Column(Text, nullable=False)
     tone = Column(String, nullable=False)  # 'professional', 'casual', 'enthusiastic', 'formal'
-    length = Column(Integer, nullable=False)  # Character count requested
+    length = Column(String, nullable=False)  # 'short', 'medium', or 'long'
     context = Column(String, nullable=True)  # Optional context/reason
     model_provider = Column(String, nullable=False)  # 'openai', 'gemini', 'grok'
     from_cache = Column(Boolean, default=False)

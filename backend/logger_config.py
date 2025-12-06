@@ -9,6 +9,7 @@ Provides structured logging with:
 """
 
 import logging
+from logging.handlers import RotatingFileHandler
 import json
 import time
 import functools
@@ -96,9 +97,13 @@ def setup_logging(log_level: str = None, log_format: str = None) -> None:
     console_handler.addFilter(RequestIDFilter())
     root_logger.addHandler(console_handler)
     
-    # File handler
+    # File handler with rotation (1 MB max size, keeping 5 backups)
     try:
-        file_handler = logging.FileHandler(log_file)
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=1 * 1024 * 1024,  # 1 MB
+            backupCount=5  # Keep app.log.1 through app.log.5
+        )
         file_handler.setFormatter(formatter)
         file_handler.addFilter(RequestIDFilter())
         root_logger.addHandler(file_handler)

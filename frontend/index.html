@@ -4,221 +4,212 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Research Agent</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Research Agent</title>
+
+    <!-- SEO -->
+    <meta name="description" content="Intelligent Research Agent - AI-powered research and analysis platform">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles/variables.css?v=9">
+    <link rel="stylesheet" href="style.css?v=9">
+    <link rel="stylesheet" href="styles/components.css?v=9">
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
-    <div class="background-gradient"></div>
+    <!-- App Layout Container -->
+    <div class="app-layout" id="appLayout">
 
-    <!-- Toast Notification Container -->
-    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
-
-    <!-- History Sidebar -->
-    <aside id="historySidebar" class="history-sidebar collapsed" role="complementary" aria-label="Research History">
-        <div class="sidebar-header">
-            <h3><i class="fa-solid fa-clock-rotate-left"></i> History</h3>
-            <button id="closeSidebar" class="btn-icon" title="Close sidebar" aria-label="Close sidebar">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-        </div>
-
-        <!-- Search & Sort Controls -->
-        <div class="sidebar-controls">
-            <input type="search" id="historySearch" placeholder="🔍 Search history..." class="search-input"
-                aria-label="Search history">
-            <select id="historySort" class="sort-select" aria-label="Sort order">
-                <option value="recent">Recent First</option>
-                <option value="name">Name (A-Z)</option>
-                <option value="company">Company (A-Z)</option>
-            </select>
-        </div>
-
-        <div class="sidebar-content">
-            <!-- Skeleton Loaders -->
-            <div id="historySkeleton" class="skeleton-container hidden">
-                <div class="skeleton-item"></div>
-                <div class="skeleton-item"></div>
-                <div class="skeleton-item"></div>
+        <!-- ==================== Collapsible Sidebar ==================== -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Sidebar Header -->
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <i class="fa-solid fa-robot"></i>
+                    <span class="brand-text">ResearchAgent</span>
+                </div>
+                <button class="sidebar-close-btn" id="sidebarCloseBtn" title="Close sidebar" aria-label="Close sidebar">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
-            <div id="historyList" class="history-list" role="list" aria-live="polite">
-                <!-- History items will be injected here -->
+            <!-- New Research Button -->
+            <div class="sidebar-actions">
+                <button class="new-research-btn" id="newResearchBtn">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>New Research</span>
+                </button>
             </div>
 
-            <div id="historyEmpty" class="empty-state hidden">
-                <i class="fa-regular fa-folder-open"></i>
-                <p>No research history yet</p>
-                <small>Generate a profile to see it here!</small>
+            <!-- History Section -->
+            <div class="sidebar-section">
+                <div class="section-label">Recent Research</div>
+                <div class="sidebar-search">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="historySearch" placeholder="Search history..." aria-label="Search history">
+                </div>
             </div>
 
-            <div id="historyLoading" class="loading-state hidden">
-                <div class="spinner"></div>
-                <p>Loading history...</p>
+            <!-- History List -->
+            <div class="sidebar-content" id="historyList" role="list" aria-label="Research history">
+                <!-- Skeleton Loaders -->
+                <div id="historySkeleton" class="skeleton-container hidden">
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                </div>
+
+                <!-- Empty State -->
+                <div id="historyEmpty" class="empty-state hidden">
+                    <i class="fa-regular fa-folder-open"></i>
+                    <p>No research history yet</p>
+                    <small>Start a research to see it here</small>
+                </div>
+
+                <!-- History items will be injected here by JS -->
             </div>
 
             <!-- Load More Button -->
-            <button id="loadMoreBtn" class="load-more-btn hidden">
-                <span class="load-more-text">Load More</span>
-                <span class="load-more-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i></span>
-            </button>
-        </div>
-    </aside>
-
-    <div class="container" id="mainContent">
-        <header>
-            <!-- Sidebar Toggle Button -->
-            <button id="toggleSidebar" class="sidebar-toggle" title="Toggle history sidebar"
-                aria-label="Toggle history sidebar">
-                <i class="fa-solid fa-bars"></i>
-            </button>
-
-            <div class="logo">
-                <i class="fa-solid fa-robot"></i>
-                <h1>Research<span>Agent</span></h1>
-            </div>
-            <div class="api-key-container">
-                <div id="userProfile" class="user-profile">
-                    <!-- User info will be injected here by app.js -->
-                </div>
-
-                <div class="settings-row">
-                    <select id="modelProvider">
-                        <option value="gemini" selected>Google Gemini</option>
-                        <option value="openai">OpenAI (GPT-4o)</option>
-                        <option value="grok">Grok</option>
-                    </select>
-                    <input type="password" id="apiKey" placeholder="Model API Key (leave empty if stored)">
-                </div>
-                <div class="settings-row">
-                    <select id="searchProvider">
-                        <option value="ddg">DuckDuckGo (Free)</option>
-                        <option value="serper">Serper.dev (Google)</option>
-                    </select>
-                    <input type="password" id="serperKey" placeholder="Serper Key (if needed)" class="hidden">
-                </div>
-                <div class="settings-row">
-                    <select id="searchMode">
-                        <option value="rag" selected>RAG (Standard)</option>
-                        <option value="tools">Autonomous (Tools)</option>
-                        <option value="hybrid">Hybrid (RAG + Tools)</option>
-                    </select>
-                </div>
-            </div>
-        </header>
-
-        <main>
-            <!-- Input Section -->
-            <section class="card input-section">
-                <h2><i class="fa-solid fa-magnifying-glass"></i> Start Research</h2>
-                <div class="form-group">
-                    <label for="personName">Full Name</label>
-                    <input type="text" id="personName" placeholder="e.g. Satya Nadella" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="companyName">Company (Optional)</label>
-                        <input type="text" id="companyName" placeholder="e.g. Microsoft">
-                    </div>
-                    <div class="form-group">
-                        <label for="additionalInfo">Additional Info (Optional)</label>
-                        <input type="text" id="additionalInfo" placeholder="e.g. CEO, Seattle">
-                    </div>
-                </div>
-
-                <div class="control-group" style="margin-top: 12px;">
-                    <label style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
-                        <input type="checkbox" id="bypassCacheResearch" style="width: auto; cursor: pointer;">
-                        <span>⚡ Bypass Cache (force fresh research)</span>
-                    </label>
-                </div>
-
-                <button id="researchBtn" class="btn-primary">
-                    <span class="btn-text">Generate Profile</span>
-                    <span class="loader hidden"></span>
+            <div class="sidebar-load-more">
+                <button id="loadMoreBtn" class="load-more-btn hidden">
+                    <span class="load-more-text">Load More</span>
+                    <span class="load-more-spinner hidden"><i class="fa-solid fa-spinner fa-spin"></i></span>
                 </button>
-            </section>
+            </div>
 
-            <!-- Results Section -->
-            <div id="resultsArea" class="hidden">
-                <div class="split-view">
-                    <!-- Profile View -->
-                    <section class="card profile-section">
-                        <div class="card-header">
-                            <h2><i class="fa-solid fa-user-tie"></i> Professional Profile</h2>
-                            <div class="actions">
-                                <button class="btn-icon" id="copyProfileBtn" title="Copy Profile"><i
-                                        class="fa-regular fa-copy"></i></button>
+            <!-- Sidebar Footer -->
+            <div class="sidebar-footer">
+                <div class="user-menu" id="userProfile">
+                    <!-- User info will be injected by JS -->
+                </div>
+                <button class="theme-toggle-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle dark mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Sidebar Overlay (Mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ==================== Main Content ==================== -->
+        <main class="main-content" id="mainContent">
+            <!-- Top Bar -->
+            <header class="top-bar">
+                <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Toggle sidebar"
+                    aria-label="Toggle sidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+
+                <!-- Back button (hidden on dashboard, shown in module view) -->
+                <button class="back-btn hidden" id="backBtn" onclick="window.app.navigateToDashboard()">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+
+                <div class="top-bar-center">
+                    <h1 class="page-title" id="pageTitle">Research Dashboard</h1>
+                </div>
+
+                <div class="top-bar-actions">
+                    <!-- Model Provider Select -->
+                    <div class="provider-select">
+                        <select id="modelProvider" aria-label="Select AI model">
+                            <option value="gemini" selected>Gemini</option>
+                            <option value="openai">GPT-4o</option>
+                            <option value="grok">Grok</option>
+                        </select>
+                    </div>
+
+                    <!-- Search Provider Select -->
+                    <div class="provider-select">
+                        <select id="searchProvider" aria-label="Select search provider">
+                            <option value="ddg">DuckDuckGo</option>
+                            <option value="serper">Serper (Google)</option>
+                        </select>
+                    </div>
+
+                    <!-- API Key Input (Optional) -->
+                    <input type="password" id="apiKey" class="api-key-input" placeholder="API Key (optional)"
+                        title="Leave empty to use server-side keys" aria-label="API Key">
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-wrapper">
+                <!-- ========== Dashboard View ========== -->
+                <div id="moduleDashboard" class="dashboard-view">
+                    <div class="dashboard-header">
+                        <h2>What would you like to research?</h2>
+                        <p>Select a research module to get started</p>
+                    </div>
+
+                    <div class="module-grid" id="moduleGrid">
+                        <!-- Module cards will be injected by JS -->
+                    </div>
+                </div>
+
+                <!-- ========== Active Module View ========== -->
+                <div id="activeModuleView" class="module-view hidden">
+                    <!-- Module Content (no header - Back button is in top bar now) -->
+                    <div class="module-content">
+                        <!-- Input Panel -->
+                        <div class="input-panel" id="inputSection">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-sliders"></i> Configuration</h3>
+                                <button class="panel-toggle" id="toggleInputBtn"
+                                    onclick="window.app.toggleInputSection()" title="Toggle configuration panel"
+                                    aria-label="Toggle configuration">
+                                    <i class="fa-solid fa-chevron-up"></i>
+                                </button>
+                            </div>
+                            <div class="panel-body" id="moduleFormContainer">
+                                <!-- Form fields will be injected by JS -->
+                            </div>
+                            <div class="panel-footer">
+                                <button class="btn-primary" id="runResearchBtn">
+                                    <span class="btn-text">Start Research</span>
+                                    <span class="btn-loader hidden"></span>
+                                </button>
                             </div>
                         </div>
-                        <div id="profileContent" class="markdown-content">
-                            <!-- Profile content will be injected here -->
-                        </div>
-                    </section>
 
-                    <!-- Note Generation View -->
-                    <section class="card note-section">
-                        <div class="card-header">
-                            <h2><i class="fa-brands fa-linkedin"></i> Connection Note</h2>
+                        <!-- Output Panel -->
+                        <div class="output-panel" id="outputPanelContainer">
+                            <!-- Output tabs and content will be injected by OutputPanel component -->
                         </div>
-
-                        <div class="controls">
-                            <div class="control-group">
-                                <label>Length</label>
-                                <select id="noteLength">
-                                    <option value="100">100 chars (Concise)</option>
-                                    <option value="150">150 chars (Brief)</option>
-                                    <option value="300" selected>300 chars (Standard)</option>
-                                    <option value="500">500+ chars (Detailed)</option>
-                                </select>
-                            </div>
-                            <div class="control-group">
-                                <label>Tone</label>
-                                <select id="noteTone">
-                                    <option value="professional" selected>Professional</option>
-                                    <option value="casual">Casual</option>
-                                    <option value="enthusiastic">Enthusiastic</option>
-                                    <option value="formal">Formal</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="control-group full-width">
-                            <label>Context / Reason</label>
-                            <input type="text" id="noteContext" placeholder="e.g. Discussing AI partnership...">
-                        </div>
-
-                        <div class="control-group full-width" style="margin-top: 8px;">
-                            <label style="display: flex; align-items: center; cursor: pointer; gap: 8px;">
-                                <input type="checkbox" id="bypassCacheNote" style="width: auto; cursor: pointer;">
-                                <span>⚡ Bypass Cache (force fresh generation)</span>
-                            </label>
-                        </div>
-
-                        <button id="generateNoteBtn" class="btn-secondary">Generate Note</button>
-
-                        <div class="note-output">
-                            <textarea id="noteResult" readonly
-                                placeholder="Generated note will appear here..."></textarea>
-                            <div class="note-actions">
-                                <span id="charCount">0 chars</span>
-                                <button class="btn-icon" id="copyNoteBtn" title="Copy Note"><i
-                                        class="fa-regular fa-copy"></i></button>
-                            </div>
-                        </div>
-                    </section>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
 
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- ==================== Scripts ==================== -->
+    <!-- Markdown Parser -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="app.js"></script>
-    <script src="history.js"></script>
+
+    <!-- Architecture -->
+    <script src="modules/module-registry.js?v=9"></script>
+    <script src="components/research-card.js?v=9"></script>
+    <script src="components/output-panel.js?v=9"></script>
+
+    <!-- Research Modules -->
+    <script src="modules/person-research.js?v=9"></script>
+    <script src="modules/company-research.js?v=9"></script>
+    <script src="modules/market-research.js?v=9"></script>
+
+    <!-- Core -->
+    <script src="history.js?v=9"></script>
+    <script src="app.js?v=9"></script>
 </body>
 
 </html>

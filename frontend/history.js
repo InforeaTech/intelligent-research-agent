@@ -1,4 +1,10 @@
-// History Sidebar Management
+/**
+ * History Sidebar Management
+ * Updated for Claude-style UI layout
+ */
+
+var API_BASE = API_BASE || 'http://localhost:8000/api';
+
 const HistoryManager = {
     sidebar: null,
     mainContent: null,
@@ -14,28 +20,25 @@ const HistoryManager = {
     isSearching: false,
 
     init() {
-        this.sidebar = document.getElementById('historySidebar');
+        // Use new element IDs from Claude-style layout
+        this.sidebar = document.getElementById('sidebar');
         this.mainContent = document.getElementById('mainContent');
         this.historyList = document.getElementById('historyList');
 
-        // Event listeners
-        document.getElementById('toggleSidebar').addEventListener('click', () => this.toggle());
-        document.getElementById('closeSidebar').addEventListener('click', () => this.close());
+        if (!this.sidebar || !this.historyList) {
+            console.warn('History sidebar elements not found');
+            return;
+        }
 
         // Search with debounce
         const searchInput = document.getElementById('historySearch');
-        let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => this.handleSearch(e.target.value), 300);
-        });
-
-        // Sort
-        document.getElementById('historySort').addEventListener('change', (e) => {
-            this.currentSort = e.target.value;
-            this.currentSkip = 0;
-            this.loadProfiles(0, this.pageSize, e.target.value);
-        });
+        if (searchInput) {
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => this.handleSearch(e.target.value), 300);
+            });
+        }
 
         // Load More button
         const loadMoreBtn = document.getElementById('loadMoreBtn');
@@ -45,15 +48,8 @@ const HistoryManager = {
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !this.sidebar.classList.contains('collapsed')) {
+            if (e.key === 'Escape' && this.sidebar && !this.sidebar.classList.contains('collapsed')) {
                 this.close();
-            }
-        });
-
-        // Focus trap for sidebar
-        this.sidebar.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') {
-                this.trapFocus(e);
             }
         });
 
@@ -98,32 +94,9 @@ const HistoryManager = {
         setTimeout(() => toast.remove(), 300);
     },
 
-    // Focus management
-    trapFocus(e) {
-        const focusable = this.sidebar.querySelectorAll(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusable.length === 0) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-        }
-    },
-
     async loadProfiles(skip = 0, limit = 20, sort = 'recent', append = false) {
-        if (!append) {
-            this.showLoading(true);
-            this.showEmpty(false);
-        }
-
         const skeleton = document.getElementById('historySkeleton');
+
         if (!append && skeleton) {
             skeleton.classList.remove('hidden');
         }
@@ -149,25 +122,26 @@ const HistoryManager = {
             console.error('History load failed:', error);
             this.showEmpty(true);
         } finally {
-            this.showLoading(false);
             if (skeleton) skeleton.classList.add('hidden');
         }
     },
 
     async loadMore() {
         const btn = document.getElementById('loadMoreBtn');
+        if (!btn) return;
+
         const text = btn.querySelector('.load-more-text');
         const spinner = btn.querySelector('.load-more-spinner');
 
         btn.disabled = true;
-        text.textContent = 'Loading...';
-        spinner.classList.remove('hidden');
+        if (text) text.textContent = 'Loading...';
+        if (spinner) spinner.classList.remove('hidden');
 
         await this.loadProfiles(this.currentSkip, this.pageSize, this.currentSort, true);
 
         btn.disabled = false;
-        text.textContent = 'Load More';
-        spinner.classList.add('hidden');
+        if (text) text.textContent = 'Load More';
+        if (spinner) spinner.classList.add('hidden');
     },
 
     updateLoadMoreButton() {
@@ -179,6 +153,8 @@ const HistoryManager = {
     },
 
     renderProfiles(profiles, total, append = false) {
+        if (!this.historyList) return;
+
         if (profiles.length === 0 && !append) {
             this.showEmpty(true);
             return;
@@ -188,15 +164,14 @@ const HistoryManager = {
         const html = profiles.map(profile => `
             <div class="history-item" data-id="${profile.id}" onclick="HistoryManager.loadProfile(${profile.id})" role="listitem" tabindex="0">
                 <div class="history-item-header">
-                    <strong>${this.escapeHtml(profile.name)}</strong>
-                    <button class="btn-icon-mini" onclick="HistoryManager.deleteProfile(${profile.id}, event)" title="Delete" aria-label="Delete profile">
+                    <span class="history-item-title">${this.escapeHtml(profile.name)}</span>
+                    <button class="history-item-delete" onclick="HistoryManager.deleteProfile(${profile.id}, event)" title="Delete" aria-label="Delete profile">
                         <i class="fa-regular fa-trash-can"></i>
                     </button>
                 </div>
-                ${profile.company ? `<div class="history-item-company"><i class="fa-solid fa-building"></i> ${this.escapeHtml(profile.company)}</div>` : ''}
-                <div class="history-item-footer">
-                    <small><i class="fa-regular fa-clock"></i> ${this.formatDate(profile.timestamp)}</small>
-                    ${profile.from_cache ? '<span class="mini-badge">⚡</span>' : ''}
+                <div class="history-item-subtitle">
+                    ${profile.company ? `<i class="fa-solid fa-building"></i> ${this.escapeHtml(profile.company)}` : ''}
+                    <span><i class="fa-regular fa-clock"></i> ${this.formatDate(profile.timestamp)}</span>
                 </div>
             </div>
         `).join('');
@@ -218,31 +193,11 @@ const HistoryManager = {
 
             const profile = await response.json();
 
-            // Populate main view
-            currentProfileText = profile.profile_text;
-            currentProfileId = profile.id;
-            profileContent.innerHTML = marked.parse(profile.profile_text);
-            resultsArea.classList.remove('hidden');
-
-            // Add history badge
-            const profileHeader = document.querySelector('.profile-section .card-header h2');
-            const existingBadge = document.getElementById('historyBadge');
-            if (existingBadge) existingBadge.remove();
-
-            const badge = document.createElement('span');
-            badge.id = 'historyBadge';
-            badge.className = 'history-badge';
-            badge.textContent = '📜 From History';
-            profileHeader.appendChild(badge);
-
-            // Load latest note if available
-            if (profile.notes && profile.notes.length > 0) {
-                const latestNote = profile.notes[profile.notes.length - 1];
-                noteResult.value = latestNote.note_text || latestNote.note_content;
-                updateCharCount();
+            // Populate main view using App Controller
+            if (window.app && window.app.loadProfileIntoView) {
+                window.app.loadProfileIntoView(profile);
             } else {
-                noteResult.value = '';
-                updateCharCount();
+                console.error('App controller not initialized');
             }
 
             // Mark as active in sidebar
@@ -250,11 +205,6 @@ const HistoryManager = {
 
             // Toast notification
             this.showToast(`Loaded "${profile.name}"`, 'success');
-
-            // Auto-collapse sidebar on mobile
-            if (window.innerWidth < 768) {
-                this.close();
-            }
 
         } catch (error) {
             this.showToast(`Error loading profile: ${error.message}`, 'error');
@@ -289,50 +239,27 @@ const HistoryManager = {
         }
     },
 
-    toggle() {
-        const isOpening = this.sidebar.classList.contains('collapsed');
-
-        if (isOpening) {
-            // Save current focus to return later
-            this.lastFocusedElement = document.activeElement;
-        }
-
-        this.sidebar.classList.toggle('collapsed');
-        this.mainContent.classList.toggle('sidebar-open');
-
-        if (isOpening) {
-            // Focus search input when opening
-            setTimeout(() => {
-                document.getElementById('historySearch')?.focus();
-            }, 300);
-        }
-    },
-
     close() {
+        if (!this.sidebar) return;
         this.sidebar.classList.add('collapsed');
-        this.mainContent.classList.remove('sidebar-open');
-
-        // Return focus to toggle button
-        if (this.lastFocusedElement) {
-            this.lastFocusedElement.focus();
-        } else {
-            document.getElementById('toggleSidebar')?.focus();
+        if (this.mainContent) {
+            this.mainContent.classList.add('expanded');
         }
     },
 
     setActiveProfile(profileId) {
         this.currentProfileId = profileId;
+        if (!this.historyList) return;
         this.historyList.querySelectorAll('.history-item').forEach(item => {
             item.classList.toggle('active', parseInt(item.dataset.id) === profileId);
         });
     },
 
-    showLoading(show) {
-        document.getElementById('historyLoading').classList.toggle('hidden', !show);
-    },
-
     showEmpty(show) {
-        document.getElementById('historyEmpty').classList.toggle('hidden', !show);
+        const emptyState = document.getElementById('historyEmpty');
+        if (emptyState) {
+            emptyState.classList.toggle('hidden', !show);
+        }
     },
 
     formatDate(timestamp) {
@@ -360,7 +287,6 @@ const HistoryManager = {
         }
 
         this.isSearching = true;
-        this.showLoading(true);
         this.showEmpty(false);
         this.updateLoadMoreButton();
 
@@ -376,8 +302,6 @@ const HistoryManager = {
         } catch (error) {
             console.error('Search error:', error);
             this.showEmpty(true);
-        } finally {
-            this.showLoading(false);
         }
     },
 
@@ -394,9 +318,12 @@ function showToast(message, type = 'info', duration = 3000) {
     HistoryManager.showToast(message, type, duration);
 }
 
-// Initialize on page load
-window.addEventListener('DOMContentLoaded', () => {
+window.showToast = showToast;
+window.HistoryManager = HistoryManager;
+
+// Initialize on page load - delayed to ensure DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         HistoryManager.init();
-    }, 100);
+    }, 200);
 });

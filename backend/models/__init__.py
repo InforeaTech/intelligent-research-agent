@@ -7,6 +7,7 @@ from models.user import User
 from models.profile import Profile
 from models.note import Note
 from models.log import Log
+from models.company import Company
 
 
 def init_db():
@@ -28,4 +29,5 @@ __all__ = [
     "Profile",
     "Note",
     "Log",
+    "Company",
 ]

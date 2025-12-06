@@ -12,6 +12,7 @@ from schemas import (
     ProfileRequest, ProfileResponse,
     NoteRequest, NoteResponse,
     DeepResearchRequest, DeepResearchResponse,
+    CompanyAnalysisRequest, CompanyAnalysisResponse,
     SecretRequest, SecretResponse,
     StatusResponse,
     User, LoginResponse, AuthCallbackResponse,
@@ -35,7 +36,7 @@ from auth import (
 )
 
 from models import get_db, init_db, SessionLocal
-from repositories import UserRepository, LogRepository, ProfileRepository, NoteRepository
+from repositories import UserRepository, LogRepository, ProfileRepository, NoteRepository, CompanyRepository
 from sqlalchemy.orm import Session
 from fastapi import Depends
 
@@ -408,6 +409,58 @@ def research_profile(request: ProfileRequest, req: Request, db: Session = Depend
         error_msg = e.errors()[0]['msg'] if e.errors() else "Validation error"
         raise HTTPException(status_code=422, detail=f"Invalid input: {error_msg}")
 
+@app.post("/api/research/company", response_model=CompanyAnalysisResponse)
+def research_company(request: CompanyAnalysisRequest, req: Request, db: Session = Depends(get_db_session)):
+    """
+    Research and analyze a company.
+    """
+    user_id = get_current_user_id(req)
+    
+    # Determine API Key
+    if request.model_provider == "gemini":
+        api_key = request.api_key or secret_manager.get_secret("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    elif request.model_provider == "grok":
+        api_key = request.api_key or secret_manager.get_secret("GROK_API_KEY") or os.getenv("GROK_API_KEY")
+    else:
+        api_key = request.api_key or secret_manager.get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        raise HTTPException(status_code=400, detail=f"{request.model_provider.capitalize()} API Key is required.")
+
+    try:
+        logger.info("Generating company analysis", extra={'extra_data': {'company': request.company_name}})
+        
+        analysis_text = agent.generate_company_analysis(
+            company=request.company_name,
+            industry=request.industry,
+            focus_areas=request.focus_areas,
+            api_key=api_key,
+            provider=request.model_provider
+        )
+        
+        # Save to DB
+        repo = CompanyRepository(db)
+        saved_company = repo.create(
+            user_id=user_id,
+            name=request.company_name,
+            industry=request.industry,
+            overview=analysis_text,
+            search_provider=request.search_provider,
+            model_provider=request.model_provider,
+            from_cache=False
+        )
+        
+        return {
+            "id": saved_company.id,
+            "name": saved_company.name,
+            "analysis": analysis_text,
+            "from_cache": False
+        }
+        
+    except Exception as e:
+        logger.error("Company analysis failed", extra={'extra_data': {'error': str(e)}}, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/generate-note", response_model=NoteResponse)
 def generate_note(request: NoteRequest, req: Request, db: Session = Depends(get_db_session)):
     if request.model_provider == "gemini":
@@ -680,6 +733,66 @@ def get_recent_profiles(
     }})
     
     return {"profiles": profiles}
+
+# ==================== Company History Endpoints ====================
+
+@app.get("/api/companies")
+def get_user_companies(
+    skip: int = 0,
+    limit: int = 20,
+    sort: str = "recent",
+    req: Request = None,
+    db: Session = Depends(get_db_session)
+):
+    """Get paginated list of user's analyzed companies."""
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    repo = CompanyRepository(db)
+    companies = repo.get_by_user(user_id, skip, limit, sort)
+    total = repo.count_by_user(user_id)
+    
+    return {"companies": companies, "total": total, "skip": skip, "limit": limit}
+
+@app.get("/api/companies/{company_id}")
+def get_company(
+    company_id: int,
+    req: Request,
+    db: Session = Depends(get_db_session)
+):
+    """Get single company analysis."""
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    repo = CompanyRepository(db)
+    company = repo.get(company_id)
+    
+    # Allow if user matches OR if user_id is None (anonymous/shared) - though logic implies user ownership
+    if not company or (company.user_id != user_id and company.user_id is not None):
+        raise HTTPException(status_code=404, detail="Company analysis not found")
+        
+    return company.to_dict()
+
+@app.delete("/api/companies/{company_id}")
+def delete_company(
+    company_id: int,
+    req: Request,
+    db: Session = Depends(get_db_session)
+):
+    """Delete a company analysis."""
+    user_id = get_current_user_id(req)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    repo = CompanyRepository(db)
+    deleted = repo.delete_by_user(company_id, user_id)
+    
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Company analysis not found")
+        
+    return {"status": "success", "message": "Company analysis deleted"}
 
 # Mount static files (frontend)
 # This must be after API routes to avoid shadowing

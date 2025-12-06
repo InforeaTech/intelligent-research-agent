@@ -17,6 +17,11 @@ class ResearchAgent:
         self.search_service = SearchService()
         self.content_service = ContentService()
 
+    def generate_company_analysis(self, company: str, industry: str, focus_areas: List[str], api_key: str, provider: str = "openai") -> str:
+        """Generates company analysis using content service."""
+        return self.content_service.generate_company_analysis(company, industry, focus_areas, api_key, provider)
+
+
     def search_serper(self, query: str, api_key: str, max_results: int = 10) -> List[Dict]:
         return self.search_service.search_serper(query, api_key, max_results)
 

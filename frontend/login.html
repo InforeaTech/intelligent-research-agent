@@ -5,31 +5,260 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In - Research Agent</title>
-    <link rel="stylesheet" href="style.css">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles/variables.css?v=7">
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-4);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            padding: var(--space-10);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: var(--space-8);
+        }
+
+        .logo-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+        }
+
+        .logo-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.75rem;
+        }
+
+        .logo-text {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        .logo-text span {
+            color: var(--accent-primary);
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: var(--font-size-base);
+        }
+
+        .login-body {
+            margin-bottom: var(--space-6);
+        }
+
+        .login-body h2 {
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: var(--space-2);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+            margin-bottom: var(--space-6);
+        }
+
+        .social-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .social-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-3);
+            width: 100%;
+            padding: var(--space-4);
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .social-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--text-muted);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .social-btn:active {
+            transform: translateY(0);
+        }
+
+        .provider-icon {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .github-btn .provider-icon {
+            color: var(--text-primary);
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            margin: var(--space-6) 0;
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: var(--space-6);
+        }
+
+        .loading-state .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto var(--space-4);
+        }
+
+        .loading-state p {
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error-message {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid rgba(220, 38, 38, 0.2);
+            border-radius: var(--radius-md);
+            padding: var(--space-4);
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            color: var(--accent-error);
+            margin-top: var(--space-4);
+        }
+
+        .error-message i {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .error-message p {
+            font-size: var(--font-size-sm);
+        }
+
+        .login-footer {
+            text-align: center;
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--border-light);
+        }
+
+        .login-footer p {
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Dark mode adjustments */
+        [data-theme="dark"] .social-btn {
+            background: var(--bg-sidebar);
+        }
+
+        [data-theme="dark"] .github-btn .provider-icon {
+            color: white;
+        }
+    </style>
 </head>
 
 <body>
-    <div class="background-gradient"></div>
-
     <div class="login-container">
         <div class="login-card">
             <!-- Logo & Branding -->
             <div class="login-header">
-                <div class="logo-large">
-                    <i class="fa-solid fa-robot"></i>
+                <div class="logo-wrapper">
+                    <div class="logo-icon">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
                 </div>
-                <h1>Research<span>Agent</span></h1>
+                <div class="logo-text">Research<span>Agent</span></div>
                 <p class="tagline">Intelligent research at your fingertips</p>
             </div>
 
             <!-- Login Options -->
             <div class="login-body">
-                <h2>Sign in to continue</h2>
-                <p class="subtitle">Choose your preferred sign-in method</p>
+                <h2>Welcome back</h2>
+                <p class="subtitle">Sign in to continue to your dashboard</p>
 
                 <!-- Social Login Buttons -->
                 <div class="social-buttons">
@@ -86,7 +315,7 @@
         </div>
     </div>
 
-    <script src="login.js"></script>
+    <script src="login.js?v=7"></script>
 </body>
 
 </html>

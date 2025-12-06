@@ -169,6 +169,107 @@ Marius Poskus is an experienced cybersecurity leader based in London. He current
             logger.error("Profile generation failed", extra={'extra_data': {'provider': provider, 'duration_ms': round(duration_ms, 2), 'error': str(e)}}, exc_info=True)
             return f"Error generating profile: {str(e)}"
 
+    def generate_company_analysis(self, company_name: str, industry: str, focus_areas: List[str], api_key: str, provider: str = "openai") -> str:
+        """Uses LLM to generate a comprehensive company analysis."""
+        logger.info("Starting company analysis", extra={'extra_data': {'provider': provider, 'company': company_name}})
+        
+        if not api_key:
+            logger.error("Missing API key", extra={'extra_data': {'provider': provider}})
+            return "Error: API Key is required."
+
+        if api_key == "mock":
+            return f"# Mock Analysis for {company_name}\n\n## Overview\nMock Data"
+
+        focus_str = ", ".join(focus_areas) if focus_areas else "General Overview, Financials, SWOT"
+        
+        prompt = f"""
+        You are an expert corporate research analyst. Perform a deep analysis of the following company.
+        
+        Company: {company_name}
+        Industry: {industry or "Unknown"}
+        Focus Areas: {focus_str}
+        
+        Provide a structured report in Markdown format with the following sections (if relevant data is found):
+        
+        # [Company Name]
+        
+        ## Company Overview
+        [Mission, history, key products/services]
+        
+        ## Financial Summary
+        [Revenue, growth, market cap, key metrics if public]
+        
+        ## Competitive Landscape
+        [Main competitors, market share, differentiation]
+        
+        ## SWOT Analysis
+        ### Strengths
+        - ...
+        ### Weaknesses
+        - ...
+        ### Opportunities
+        - ...
+        ### Threats
+        - ...
+        
+        ## Strategic Outlook
+        [Future prospects, risks, conclusion]
+        
+        Ensure data is factual. If specific financial data is unavailable (e.g. private company), note that estimates are used or data is limited.
+        """
+        
+        start_time = time.time()
+        try:
+            response_text = ""
+            if provider == "gemini":
+                gemini_config = settings.get_provider_config("gemini")
+                logger.info("Calling Gemini API", extra={'extra_data': {'model': gemini_config['model']}})
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel(gemini_config['model'])
+                response = model.generate_content(prompt)
+                response_text = response.text
+                
+            elif provider == "grok":
+                grok_config = settings.get_provider_config("grok")
+                logger.info("Calling Grok API", extra={'extra_data': {'model': grok_config['model']}})
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.x.ai/v1",
+                    http_client=httpx.Client()
+                )
+                response = client.chat.completions.create(
+                    model=grok_config['model'],
+                    messages=[
+                        {"role": "system", "content": "You are an expert corporate analyst."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=grok_config['temperature']
+                )
+                response_text = response.choices[0].message.content
+                
+            else:
+                openai_config = settings.get_provider_config("openai")
+                logger.info("Calling OpenAI API", extra={'extra_data': {'model': openai_config['model']}})
+                client = OpenAI(api_key=api_key, http_client=httpx.Client())
+                response = client.chat.completions.create(
+                    model=openai_config['model'],
+                    messages=[
+                        {"role": "system", "content": "You are an expert corporate analyst."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=openai_config['temperature']
+                )
+                response_text = response.choices[0].message.content
+
+            duration_ms = (time.time() - start_time) * 1000
+            logger.info("Company analysis completed", extra={'extra_data': {'provider': provider, 'duration_ms': round(duration_ms, 2), 'response_length': len(response_text)}})
+            return response_text
+
+        except Exception as e:
+            duration_ms = (time.time() - start_time) * 1000
+            logger.error("Company analysis failed", extra={'extra_data': {'provider': provider, 'duration_ms': round(duration_ms, 2), 'error': str(e)}}, exc_info=True)
+            return f"Error generating analysis: {str(e)}"
+
     def generate_note(self, profile_text: str, length: int, tone: str, context: str, api_key: str, provider: str = "openai") -> str:
         """Generates a LinkedIn connection note."""
         logger.info("Starting note generation", extra={'extra_data': {'provider': provider, 'length': length, 'tone': tone}})

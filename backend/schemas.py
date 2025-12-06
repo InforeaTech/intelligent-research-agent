@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, field_validator, ValidationError
 from config import settings
 
@@ -65,12 +65,23 @@ class DeepResearchRequest(BaseModel):
                 raise ValueError("search_mode must be 'rag', 'tools', or 'hybrid'")
         return v
 
+class CompanyAnalysisRequest(BaseModel):
+    company_name: str
+    industry: Optional[str] = None
+    focus_areas: Optional[List[str]] = None
+    api_key: str
+    model_provider: str = settings.DEFAULT_MODEL_PROVIDER
+    search_provider: str = settings.DEFAULT_SEARCH_PROVIDER
+    serper_api_key: Optional[str] = None
+    bypass_cache: bool = False
+
+
 class NoteRequest(BaseModel):
     profile_text: str
-    length: int = 300
+    length: str = "medium"  # short, medium, or long
     tone: str = "professional"
     context: str = ""
-    api_key: str
+    api_key: Optional[str] = None  # Optional - can be retrieved from secrets manager
     model_provider: str = settings.DEFAULT_MODEL_PROVIDER  # gemini, openai, or grok
     bypass_cache: bool = False
     profile_id: Optional[int] = None
@@ -95,6 +106,13 @@ class NoteResponse(BaseModel):
 
 class DeepResearchResponse(BaseModel):
     report: str
+
+class CompanyAnalysisResponse(BaseModel):
+    id: Optional[int] = None
+    name: str
+    analysis: str
+    from_cache: bool = False
+
 
 class SecretResponse(BaseModel):
     key: str
@@ -131,7 +149,7 @@ class NoteSchema(BaseModel):
     profile_id: int
     note_text: str
     tone: str
-    length: int
+    length: str  # short, medium, or long
     context: Optional[str] = None
     timestamp: datetime
     
